@@ -14,7 +14,165 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      assessments: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          risk_level: string
+          security_score: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          risk_level?: string
+          security_score?: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          risk_level?: string
+          security_score?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          company_name: string
+          created_at: string
+          id: string
+          user_id: string
+          website: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string
+          id?: string
+          user_id: string
+          website: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+          website?: string
+        }
+        Relationships: []
+      }
+      findings: {
+        Row: {
+          assessment_id: string
+          created_at: string
+          description: string
+          id: string
+          recommendation: string
+          severity: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          assessment_id: string
+          created_at?: string
+          description: string
+          id?: string
+          recommendation: string
+          severity: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          assessment_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          recommendation?: string
+          severity?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "findings_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          assessment_id: string
+          content: Json
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          assessment_id: string
+          content: Json
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          assessment_id?: string
+          content?: Json
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
