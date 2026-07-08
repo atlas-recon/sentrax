@@ -64,12 +64,12 @@ function NewAssessment() {
 
     await supabase.from("reports").insert({
       assessment_id: assessment.id, user_id: user.id,
-      content: {
+      content: JSON.parse(JSON.stringify({
         summary: `Automated assessment for ${parsed.data.company_name} completed. Score ${demo.score}/100 (${demo.risk} risk).`,
         score: demo.score, risk: demo.risk,
         findings: demo.findings,
         website: parsed.data.website,
-      },
+      })),
     });
 
     setStep(SCAN_STEPS.length);
