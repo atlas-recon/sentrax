@@ -11,33 +11,65 @@ export interface Finding {
   description: string;
   recommendation: string;
   category: "headers" | "ssl" | "tech" | "cookies" | "website";
+  evidence: string; // multi-line, monospace-friendly raw evidence
 }
 
-interface StepResult {
-  key: string;
-  ok: boolean;
-  detail: string;
+interface StepResult { key: string; ok: boolean; detail: string }
+
+interface RedirectHop {
+  url: string;
+  status: number;
+  location?: string;
 }
+
+interface CookieInfo {
+  name: string;
+  raw: string;
+  secure: boolean;
+  httpOnly: boolean;
+  sameSite?: string;
+}
+
+interface TechHit { name: string; source: string; evidence: string }
 
 interface ScanResult {
   score: number;
   risk: RiskLevel;
   findings: Finding[];
   steps: StepResult[];
-  tech: string[];
+  tech: TechHit[];
   target: {
     url: string;
     finalUrl: string;
     statusCode: number;
-    server?: string;
     protocol: string;
     hstsRedirect: boolean;
+    server?: string;
+    poweredBy?: string;
+    responseHeaders: Record<string, string>;
+    setCookies: CookieInfo[];
+    redirectChain: RedirectHop[];
+    httpToHttpsChain: RedirectHop[];
   };
 }
 
 const SEVERITY_WEIGHT: Record<Severity, number> = {
   critical: 25, high: 15, medium: 8, low: 4, info: 1,
 };
+
+const SECURITY_HEADERS = [
+  "content-security-policy",
+  "strict-transport-security",
+  "x-frame-options",
+  "x-content-type-options",
+  "referrer-policy",
+  "permissions-policy",
+  "cross-origin-opener-policy",
+  "cross-origin-resource-policy",
+  "cross-origin-embedder-policy",
+  "server",
+  "x-powered-by",
+];
 
 const REC_HEADERS: {
   name: string; severity: Severity; title: string; desc: string; rec: string;
@@ -62,23 +94,74 @@ const REC_HEADERS: {
     rec: "Define a Permissions-Policy disabling unused features." },
 ];
 
-function detectTech(headers: Headers, html: string): string[] {
-  const tech = new Set<string>();
-  const server = headers.get("server"); if (server) tech.add(`Server: ${server}`);
-  const xp = headers.get("x-powered-by"); if (xp) tech.add(`X-Powered-By: ${xp}`);
-  const via = headers.get("via"); if (via) tech.add(`Via: ${via}`);
-  const cf = headers.get("cf-ray"); if (cf) tech.add("Cloudflare");
+function parseCookie(raw: string): CookieInfo {
+  const parts = raw.split(";").map((p) => p.trim());
+  const [nameValue, ...attrs] = parts;
+  const name = nameValue.split("=")[0] ?? "(unnamed)";
+  const lowerAttrs = attrs.map((a) => a.toLowerCase());
+  const sameSiteAttr = attrs.find((a) => a.toLowerCase().startsWith("samesite="));
+  return {
+    name,
+    raw,
+    secure: lowerAttrs.includes("secure"),
+    httpOnly: lowerAttrs.includes("httponly"),
+    sameSite: sameSiteAttr?.split("=")[1],
+  };
+}
+
+function detectTech(headers: Headers, html: string): TechHit[] {
+  const hits: TechHit[] = [];
+  const push = (name: string, source: string, evidence: string) => {
+    if (!hits.some((h) => h.name === name)) hits.push({ name, source, evidence });
+  };
+  const server = headers.get("server"); if (server) push(server, "header", `server: ${server}`);
+  const xp = headers.get("x-powered-by"); if (xp) push(xp, "header", `x-powered-by: ${xp}`);
+  const via = headers.get("via"); if (via) push(`Via ${via}`, "header", `via: ${via}`);
+  if (headers.get("cf-ray")) push("Cloudflare", "header", `cf-ray: ${headers.get("cf-ray")}`);
+  if (headers.get("x-vercel-id")) push("Vercel", "header", `x-vercel-id: ${headers.get("x-vercel-id")}`);
+  if (headers.get("x-nf-request-id")) push("Netlify", "header", `x-nf-request-id: ${headers.get("x-nf-request-id")}`);
   const gen = html.match(/<meta[^>]+name=["']generator["'][^>]+content=["']([^"']+)["']/i);
-  if (gen) tech.add(`Generator: ${gen[1]}`);
-  if (/wp-content|wp-includes/i.test(html)) tech.add("WordPress");
-  if (/_next\/static/i.test(html)) tech.add("Next.js");
-  if (/window\.__NUXT__/i.test(html)) tech.add("Nuxt");
-  if (/id=["']__vite/i.test(html) || /\/@vite\//i.test(html)) tech.add("Vite");
-  if (/data-reactroot|react-dom/i.test(html)) tech.add("React");
-  if (/ng-version=/i.test(html)) tech.add("Angular");
-  if (/shopify/i.test(html)) tech.add("Shopify");
-  if (/squarespace/i.test(html)) tech.add("Squarespace");
-  return [...tech];
+  if (gen) push(`Generator: ${gen[1]}`, "html", gen[0]);
+  const patterns: [RegExp, string][] = [
+    [/wp-content|wp-includes/i, "WordPress"],
+    [/_next\/static/i, "Next.js"],
+    [/window\.__NUXT__/i, "Nuxt"],
+    [/id=["']__vite|\/@vite\//i, "Vite"],
+    [/data-reactroot|react-dom/i, "React"],
+    [/ng-version=/i, "Angular"],
+    [/cdn\.shopify\.com|Shopify\.theme/i, "Shopify"],
+    [/static1\.squarespace\.com/i, "Squarespace"],
+    [/wix\.com|static\.parastorage\.com/i, "Wix"],
+    [/webflow\.js/i, "Webflow"],
+  ];
+  for (const [re, name] of patterns) {
+    const m = html.match(re);
+    if (m) push(name, "html", `matched /${re.source}/ → "${m[0].slice(0, 80)}"`);
+  }
+  return hits;
+}
+
+function headersToRecord(h: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  h.forEach((v, k) => { out[k] = v; });
+  return out;
+}
+
+async function followRedirects(startUrl: string, opts: RequestInit): Promise<{ chain: RedirectHop[]; final: Response }> {
+  const chain: RedirectHop[] = [];
+  let current = startUrl;
+  for (let i = 0; i < 10; i++) {
+    const r = await fetch(current, { ...opts, redirect: "manual" });
+    const loc = r.headers.get("location");
+    chain.push({ url: current, status: r.status, location: loc || undefined });
+    if (r.status >= 300 && r.status < 400 && loc) {
+      try { current = new URL(loc, current).toString(); } catch { return { chain, final: r }; }
+      await r.body?.cancel();
+      continue;
+    }
+    return { chain, final: r };
+  }
+  throw new Error("Too many redirects (>10)");
 }
 
 async function runRealScan(rawUrl: string): Promise<ScanResult> {
@@ -87,104 +170,167 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
   let url: URL;
   try { url = new URL(rawUrl); } catch { throw new Error("Invalid URL"); }
 
-  // Step 1: website reachability + HTTP→HTTPS redirect check
+  // Step 1: HTTP→HTTPS redirect probe (only when target is https)
   let hstsRedirect = false;
+  let httpToHttpsChain: RedirectHop[] = [];
   if (url.protocol === "https:") {
     try {
       const httpUrl = new URL(rawUrl); httpUrl.protocol = "http:";
-      const r = await fetch(httpUrl.toString(), { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(8000) });
-      const loc = r.headers.get("location") || "";
-      hstsRedirect = r.status >= 300 && r.status < 400 && loc.startsWith("https://");
+      const probe = await followRedirects(httpUrl.toString(), {
+        method: "GET",
+        headers: { "user-agent": "SentraX-Scanner/1.0" },
+        signal: AbortSignal.timeout(8000),
+      });
+      httpToHttpsChain = probe.chain;
+      const finalUrlProbe = probe.chain.at(-1)?.url ?? httpUrl.toString();
+      hstsRedirect = finalUrlProbe.startsWith("https://");
       if (!hstsRedirect) {
-        findings.push({ category: "ssl", severity: "medium", title: "HTTP does not redirect to HTTPS",
+        findings.push({
+          category: "ssl", severity: "medium",
+          title: "HTTP does not redirect to HTTPS",
           description: "Plain HTTP requests are not redirected to HTTPS, allowing users to browse over an insecure channel.",
-          recommendation: "Configure a permanent 301 redirect from http:// to https:// at the edge or web server." });
+          recommendation: "Configure a permanent 301 redirect from http:// to https:// at the edge or web server.",
+          evidence:
+            `Probed: ${httpUrl.toString()}\n` +
+            probe.chain.map((h, i) => `  [${i}] ${h.status} ${h.url}${h.location ? ` → ${h.location}` : ""}`).join("\n") +
+            `\nFinal URL: ${finalUrlProbe}`,
+        });
       }
-    } catch { /* http may be blocked entirely — that's fine */ }
+    } catch (e) {
+      httpToHttpsChain = [{ url: rawUrl.replace(/^https:/, "http:"), status: 0, location: e instanceof Error ? e.message : String(e) }];
+    }
   } else {
-    findings.push({ category: "ssl", severity: "high", title: "Site not served over HTTPS",
+    findings.push({
+      category: "ssl", severity: "high",
+      title: "Site not served over HTTPS",
       description: "The target URL uses HTTP. Traffic can be intercepted or tampered with by any network attacker.",
-      recommendation: "Obtain a TLS certificate (Let's Encrypt) and force HTTPS on all endpoints." });
+      recommendation: "Obtain a TLS certificate (Let's Encrypt) and force HTTPS on all endpoints.",
+      evidence: `Requested URL protocol: ${url.protocol}\nHost: ${url.hostname}`,
+    });
   }
   steps.push({ key: "website", ok: true, detail: `Analyzed ${url.hostname}` });
 
-  // Step 2: SSL — via a real HTTPS fetch and cert info via SSL Labs-style endpoint (skip heavy call, use fetch success)
+  // Step 2: main fetch with full redirect chain
   let response: Response;
   let html = "";
   let finalUrl = rawUrl;
   let statusCode = 0;
+  let mainChain: RedirectHop[] = [];
   try {
-    response = await fetch(rawUrl, {
+    const { chain, final } = await followRedirects(rawUrl, {
       method: "GET",
-      redirect: "follow",
       headers: { "user-agent": "SentraX-Scanner/1.0 (+https://sentrax.app)" },
       signal: AbortSignal.timeout(15000),
     });
-    finalUrl = response.url || rawUrl;
-    statusCode = response.status;
-    const ct = response.headers.get("content-type") || "";
-    if (ct.includes("text/") || ct.includes("html")) {
-      html = (await response.text()).slice(0, 300_000);
+    mainChain = chain;
+    response = final;
+    finalUrl = chain.at(-1)?.url ?? rawUrl;
+    statusCode = final.status;
+    const ct = final.headers.get("content-type") || "";
+    if (ct.includes("text/") || ct.includes("html") || ct.includes("xml")) {
+      html = (await final.text()).slice(0, 300_000);
     }
     steps.push({ key: "ssl", ok: url.protocol === "https:", detail: url.protocol === "https:" ? "TLS handshake succeeded" : "No TLS in use" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     steps.push({ key: "ssl", ok: false, detail: `Fetch failed: ${msg}` });
-    findings.push({ category: "website", severity: "high", title: "Target unreachable",
+    findings.push({
+      category: "website", severity: "high",
+      title: "Target unreachable",
       description: `The scanner could not connect to ${rawUrl}: ${msg}`,
-      recommendation: "Verify the site is publicly reachable and not blocking the scanner's IP." });
-    // return early with a low-info result
+      recommendation: "Verify the site is publicly reachable and not blocking the scanner's IP.",
+      evidence: `GET ${rawUrl}\nError: ${msg}`,
+    });
     const penalty = findings.reduce((a, f) => a + SEVERITY_WEIGHT[f.severity], 0);
     const score = Math.max(15, 100 - penalty);
     return {
       score, risk: score >= 80 ? "Low" : score >= 55 ? "Medium" : "High",
       findings, steps, tech: [],
-      target: { url: rawUrl, finalUrl: rawUrl, statusCode: 0, protocol: url.protocol, hstsRedirect },
+      target: {
+        url: rawUrl, finalUrl: rawUrl, statusCode: 0, protocol: url.protocol, hstsRedirect,
+        responseHeaders: {}, setCookies: [], redirectChain: [], httpToHttpsChain,
+      },
     };
   }
 
   // Step 3: security headers
   const h = response.headers;
+  const headersRecord = headersToRecord(h);
   for (const rec of REC_HEADERS) {
     if (!h.get(rec.name)) {
-      findings.push({ category: "headers", severity: rec.severity, title: rec.title, description: rec.desc, recommendation: rec.rec });
+      const present = SECURITY_HEADERS
+        .filter((n) => h.get(n))
+        .map((n) => `  ${n}: ${h.get(n)}`).join("\n") || "  (no other security headers set)";
+      findings.push({
+        category: "headers", severity: rec.severity,
+        title: rec.title, description: rec.desc, recommendation: rec.rec,
+        evidence:
+          `Response from: ${finalUrl}\nStatus: ${statusCode}\nMissing header: ${rec.name}\n\nOther security headers seen:\n${present}`,
+      });
     }
   }
   const server = h.get("server");
   if (server && /\d/.test(server)) {
-    findings.push({ category: "headers", severity: "low", title: "Server version disclosed in response header",
+    findings.push({
+      category: "headers", severity: "low",
+      title: "Server version disclosed in response header",
       description: `The 'Server' header reveals '${server}', aiding attacker reconnaissance for known CVEs.`,
-      recommendation: "Suppress or generalize the Server header at the reverse proxy or web server." });
+      recommendation: "Suppress or generalize the Server header at the reverse proxy or web server.",
+      evidence: `server: ${server}\nSource: ${finalUrl}`,
+    });
   }
   const xpb = h.get("x-powered-by");
   if (xpb) {
-    findings.push({ category: "headers", severity: "low", title: "X-Powered-By header disclosed",
+    findings.push({
+      category: "headers", severity: "low",
+      title: "X-Powered-By header disclosed",
       description: `Header reveals backend stack: '${xpb}'.`,
-      recommendation: "Remove the X-Powered-By header at the web server or framework config." });
+      recommendation: "Remove the X-Powered-By header at the web server or framework config.",
+      evidence: `x-powered-by: ${xpb}\nSource: ${finalUrl}`,
+    });
   }
-  steps.push({ key: "headers", ok: true, detail: `Inspected ${[...h.keys()].length} response headers` });
+  steps.push({ key: "headers", ok: true, detail: `Inspected ${Object.keys(headersRecord).length} response headers` });
 
-  // Step 4: tech detection & cookies
-  const tech = detectTech(h, html);
-  const setCookies = h.get("set-cookie") || "";
-  if (setCookies) {
-    const lower = setCookies.toLowerCase();
-    if (!lower.includes("secure")) {
-      findings.push({ category: "cookies", severity: "high", title: "Cookies missing Secure flag",
-        description: "One or more cookies were set without the Secure attribute and may be transmitted over HTTP.",
-        recommendation: "Add the Secure attribute to all cookies set on HTTPS responses." });
-    }
-    if (!lower.includes("httponly")) {
-      findings.push({ category: "cookies", severity: "medium", title: "Cookies missing HttpOnly flag",
-        description: "Cookies without HttpOnly are readable from JavaScript, increasing XSS impact.",
-        recommendation: "Set HttpOnly on all session/authentication cookies." });
-    }
-    if (!lower.includes("samesite")) {
-      findings.push({ category: "cookies", severity: "low", title: "Cookies missing SameSite attribute",
-        description: "Without SameSite, cookies may be sent in cross-site requests, enabling CSRF.",
-        recommendation: "Set SameSite=Lax or SameSite=Strict on cookies." });
-    }
+  // Step 4: cookies + tech
+  // getSetCookie() is the standard way to get each Set-Cookie separately.
+  const rawSetCookies: string[] =
+    typeof (h as unknown as { getSetCookie?: () => string[] }).getSetCookie === "function"
+      ? (h as unknown as { getSetCookie: () => string[] }).getSetCookie()
+      : (h.get("set-cookie") ? [h.get("set-cookie")!] : []);
+  const cookies: CookieInfo[] = rawSetCookies.map(parseCookie);
+
+  const insecure = cookies.filter((c) => !c.secure);
+  const noHttpOnly = cookies.filter((c) => !c.httpOnly);
+  const noSameSite = cookies.filter((c) => !c.sameSite);
+  if (insecure.length) {
+    findings.push({
+      category: "cookies", severity: "high",
+      title: `${insecure.length} cookie${insecure.length === 1 ? "" : "s"} missing Secure flag`,
+      description: "Cookies without the Secure attribute may be transmitted over unencrypted HTTP.",
+      recommendation: "Add the Secure attribute to every cookie set on HTTPS responses.",
+      evidence: insecure.map((c) => `${c.name}\n  raw: ${c.raw}`).join("\n\n"),
+    });
   }
+  if (noHttpOnly.length) {
+    findings.push({
+      category: "cookies", severity: "medium",
+      title: `${noHttpOnly.length} cookie${noHttpOnly.length === 1 ? "" : "s"} missing HttpOnly flag`,
+      description: "Cookies without HttpOnly are readable from JavaScript, increasing XSS impact for session tokens.",
+      recommendation: "Set HttpOnly on all session/authentication cookies.",
+      evidence: noHttpOnly.map((c) => `${c.name}\n  raw: ${c.raw}`).join("\n\n"),
+    });
+  }
+  if (noSameSite.length) {
+    findings.push({
+      category: "cookies", severity: "low",
+      title: `${noSameSite.length} cookie${noSameSite.length === 1 ? "" : "s"} missing SameSite attribute`,
+      description: "Without SameSite, cookies may be sent in cross-site requests, enabling CSRF.",
+      recommendation: "Set SameSite=Lax or SameSite=Strict on cookies.",
+      evidence: noSameSite.map((c) => `${c.name}\n  raw: ${c.raw}`).join("\n\n"),
+    });
+  }
+
+  const tech = detectTech(h, html);
   steps.push({ key: "tech", ok: true, detail: tech.length ? `Detected ${tech.length} technologies` : "No tech fingerprint found" });
 
   // Step 5: risk evaluation
@@ -195,7 +341,15 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
 
   return {
     score, risk, findings, steps, tech,
-    target: { url: rawUrl, finalUrl, statusCode, server: server || undefined, protocol: url.protocol, hstsRedirect },
+    target: {
+      url: rawUrl, finalUrl, statusCode, protocol: url.protocol, hstsRedirect,
+      server: server || undefined,
+      poweredBy: xpb || undefined,
+      responseHeaders: headersRecord,
+      setCookies: cookies,
+      redirectChain: mainChain,
+      httpToHttpsChain,
+    },
   };
 }
 
