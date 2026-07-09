@@ -148,16 +148,17 @@ function NewAssessment() {
                     </div>
                     <div className="flex-1">
                       <div className={cn("font-medium", state === "pending" && "text-muted-foreground")}>{s.label}</div>
-                      <div className="font-mono text-xs text-muted-foreground">{s.detail}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{stepDetails[s.key] ?? s.detail}</div>
                     </div>
                   </li>
                 );
               })}
             </ol>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">Architecture is designed to plug into OWASP ZAP, Nmap, and threat-intel APIs in future releases.</p>
+          <p className="mt-4 text-xs text-muted-foreground">Live scan performs real HTTP fetch, TLS reachability, header inspection, cookie analysis, and technology fingerprinting. Ready to plug into OWASP ZAP & Nmap.</p>
         </Card>
       </div>
     </AppShell>
   );
 }
+
