@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, ScanLine } from "lucide-react";
-import { SCAN_STEPS, generateDemoAssessment } from "@/lib/scan";
+import { SCAN_STEPS } from "@/lib/scan";
+import { runScan } from "@/lib/scan.functions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/assessments/new")({
@@ -24,8 +26,10 @@ const schema = z.object({
 
 function NewAssessment() {
   const navigate = useNavigate();
+  const scan = useServerFn(runScan);
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState(-1);
+  const [stepDetails, setStepDetails] = useState<Record<string, string>>({});
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -35,46 +39,70 @@ function NewAssessment() {
 
     setRunning(true);
     setStep(0);
+    setStepDetails({});
 
     const { data: userData } = await supabase.auth.getUser();
     const user = userData.user!;
 
-    // Insert company
     const { data: company, error: cErr } = await supabase.from("companies").insert({
       user_id: user.id, company_name: parsed.data.company_name, website: parsed.data.website,
     }).select().single();
     if (cErr || !company) { toast.error(cErr?.message ?? "Failed"); setRunning(false); return; }
 
-    // Simulated scan progression
-    for (let i = 0; i < SCAN_STEPS.length; i++) {
-      setStep(i);
-      await new Promise((r) => setTimeout(r, 700));
-    }
+    // Animate step progression while the real scan runs in parallel
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      currentStep = Math.min(currentStep + 1, SCAN_STEPS.length - 1);
+      setStep(currentStep);
+    }, 900);
 
-    const demo = generateDemoAssessment(parsed.data.website);
+    let result;
+    try {
+      result = await scan({ data: { website: parsed.data.website } });
+    } catch (err) {
+      clearInterval(interval);
+      toast.error(err instanceof Error ? err.message : "Scan failed");
+      setRunning(false);
+      return;
+    }
+    clearInterval(interval);
+
+    const details: Record<string, string> = {};
+    for (const s of result.steps) details[s.key] = s.detail;
+    setStepDetails(details);
 
     const { data: assessment, error: aErr } = await supabase.from("assessments").insert({
-      user_id: user.id, company_id: company.id, security_score: demo.score, risk_level: demo.risk, status: "completed",
+      user_id: user.id, company_id: company.id, security_score: result.score, risk_level: result.risk, status: "completed",
     }).select().single();
     if (aErr || !assessment) { toast.error(aErr?.message ?? "Failed"); setRunning(false); return; }
 
-    await supabase.from("findings").insert(demo.findings.map((f) => ({
-      assessment_id: assessment.id, user_id: user.id, ...f,
-    })));
+    if (result.findings.length) {
+      await supabase.from("findings").insert(result.findings.map((f) => ({
+        assessment_id: assessment.id,
+        user_id: user.id,
+        title: f.title,
+        severity: f.severity,
+        description: f.description,
+        recommendation: f.recommendation,
+      })));
+    }
 
     await supabase.from("reports").insert({
       assessment_id: assessment.id, user_id: user.id,
       content: JSON.parse(JSON.stringify({
-        summary: `Automated assessment for ${parsed.data.company_name} completed. Score ${demo.score}/100 (${demo.risk} risk).`,
-        score: demo.score, risk: demo.risk,
-        findings: demo.findings,
+        summary: `Live scan of ${parsed.data.website} completed. Score ${result.score}/100 (${result.risk} risk). ${result.findings.length} findings across headers, TLS, cookies, and tech fingerprint.`,
+        score: result.score, risk: result.risk,
+        findings: result.findings,
         website: parsed.data.website,
+        target: result.target,
+        tech: result.tech,
+        steps: result.steps,
       })),
     });
 
     setStep(SCAN_STEPS.length);
-    toast.success("Assessment complete");
-    setTimeout(() => navigate({ to: "/reports/$id", params: { id: assessment.id } }), 400);
+    toast.success(`Scan complete — ${result.findings.length} findings`);
+    setTimeout(() => navigate({ to: "/reports/$id", params: { id: assessment.id } }), 500);
   }
 
   return (
