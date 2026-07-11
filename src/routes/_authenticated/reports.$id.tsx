@@ -251,7 +251,12 @@ function ReportDetail() {
                 <div key={f.id} className="rounded-lg border border-border/60 bg-background/40 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-medium">{f.title}</div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {f.owasp && (
+                        <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">
+                          {f.owasp}
+                        </span>
+                      )}
                       {f.category && (
                         <span className="rounded-full border border-border/60 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                           {f.category}
