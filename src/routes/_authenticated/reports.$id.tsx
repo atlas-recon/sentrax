@@ -23,6 +23,7 @@ type ReportContent = {
     recommendation: string;
     category?: string;
     evidence?: string;
+    owasp?: string;
   }>;
   tech?: Array<{ name: string; source: string; evidence: string }> | string[];
   target?: {
@@ -340,4 +341,53 @@ function formatHeaders(headers?: Record<string, string>) {
     else lines.push(`${key}: — not set`);
   }
   return lines.join("\n");
+}
+
+const SEV_TONES: Record<Severity, string> = {
+  critical: "#991b1b", high: "#dc2626", medium: "#d97706", low: "#2563eb", info: "#64748b",
+};
+
+function SeverityChart({ counts }: { counts: Record<Severity, number> }) {
+  const order: Severity[] = ["critical", "high", "medium", "low", "info"];
+  const max = Math.max(1, ...order.map((k) => counts[k]));
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+      <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Findings by severity</div>
+      <div className="space-y-2">
+        {order.map((sev) => (
+          <div key={sev} className="flex items-center gap-2">
+            <span className="w-16 font-mono text-[10px] uppercase" style={{ color: SEV_TONES[sev] }}>{sev}</span>
+            <div className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full transition-all" style={{ width: `${(counts[sev] / max) * 100}%`, background: SEV_TONES[sev] }} />
+            </div>
+            <span className="w-6 text-right font-mono text-xs">{counts[sev]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RiskGauge({ score, risk }: { score: number; risk: string }) {
+  const pct = Math.max(0, Math.min(100, score));
+  const tone = risk === "Low" ? "#16a34a" : risk === "High" ? "#dc2626" : "#d97706";
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Risk gauge</span>
+        <span className="font-mono text-xs" style={{ color: tone }}>{risk}</span>
+      </div>
+      <div className="relative h-3 overflow-hidden rounded-full" style={{ background: "linear-gradient(90deg, #dc2626 0%, #dc2626 54%, #d97706 55%, #d97706 79%, #16a34a 80%, #16a34a 100%)" }}>
+        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2" style={{ left: `${pct}%` }}>
+          <div className="h-5 w-1 rounded-full bg-foreground shadow-lg" />
+        </div>
+      </div>
+      <div className="mt-1 flex justify-between font-mono text-[10px] text-muted-foreground">
+        <span>0</span><span>55</span><span>80</span><span>100</span>
+      </div>
+      <div className="mt-4 text-center">
+        <div className="text-3xl font-bold" style={{ color: tone }}>{score}<span className="text-sm text-muted-foreground">/100</span></div>
+      </div>
+    </div>
+  );
 }
