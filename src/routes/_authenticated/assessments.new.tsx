@@ -84,6 +84,7 @@ function NewAssessment() {
         severity: f.severity,
         description: f.description,
         recommendation: f.recommendation,
+        category: f.category,
       })));
     }
 
