@@ -89,18 +89,53 @@ function ReportDetail() {
   const findings =
     content?.findings && content.findings.length
       ? content.findings.map((f, i) => ({ id: `c-${i}`, ...f }))
-      : dbFindings.map((f) => ({ ...f, evidence: undefined as string | undefined, category: undefined as string | undefined }));
+      : dbFindings.map((f) => ({ ...f, evidence: undefined as string | undefined, category: undefined as string | undefined, owasp: undefined as string | undefined }));
 
   const target = content?.target;
   const tech = content?.tech;
+  const [downloading, setDownloading] = useState(false);
+
+  const severityCounts = findings.reduce(
+    (acc, f) => { acc[f.severity as Severity] = (acc[f.severity as Severity] ?? 0) + 1; return acc; },
+    { critical: 0, high: 0, medium: 0, low: 0, info: 0 } as Record<Severity, number>,
+  );
+
+  async function downloadPdf() {
+    if (!a) return;
+    setDownloading(true);
+    try {
+      const blob = await generateReportPdf({
+        company: a.companies?.company_name ?? "Untitled",
+        website: a.companies?.website ?? "",
+        score: a.security_score,
+        risk: a.risk_level as "Low" | "Medium" | "High",
+        generatedAt: new Date(a.created_at).toLocaleString(),
+        summary: content?.summary ?? `Assessment completed. Score ${a.security_score}/100 (${a.risk_level} risk) with ${findings.length} finding(s) identified.`,
+        findings: findings as unknown as PdfFinding[],
+        target: target as never,
+        tech: (tech as never) ?? [],
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `sentrax-report-${(a.companies?.company_name ?? "site").replace(/\W+/g, "-").toLowerCase()}-${a.id.slice(0, 8)}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("PDF downloaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "PDF export failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <AppShell title="Security Report"
       actions={
         <>
           <Button asChild variant="outline" size="sm"><Link to="/reports"><ArrowLeft className="mr-2 h-4 w-4" />All reports</Link></Button>
-          <Button size="sm" className="bg-gradient-primary text-primary-foreground" onClick={() => toast.info("PDF export coming soon")}>
-            <Download className="mr-2 h-4 w-4" />Download
+          <Button size="sm" className="bg-gradient-primary text-primary-foreground" onClick={downloadPdf} disabled={downloading || !a}>
+            {downloading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Building…</> : <><Download className="mr-2 h-4 w-4" />Download PDF</>}
           </Button>
         </>
       }>
@@ -125,7 +160,14 @@ function ReportDetail() {
             <p className="mt-6 text-sm text-muted-foreground">
               SentraX identified {findings.length} finding{findings.length === 1 ? "" : "s"} across your public attack surface. Overall posture is rated <strong className="text-foreground">{a.risk_level}</strong>. Prioritize the high-severity items below within the next 30 days to materially reduce risk.
             </p>
+
+            {/* Risk graphics */}
+            <div className="mt-6 grid gap-6 md:grid-cols-2">
+              <SeverityChart counts={severityCounts} />
+              <RiskGauge score={a.security_score} risk={a.risk_level} />
+            </div>
           </Card>
+
 
           {/* Scan details */}
           {target && (
