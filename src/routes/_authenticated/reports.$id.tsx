@@ -1,13 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RiskPill, SeverityBadge } from "@/components/severity-badge";
-import { Download, ArrowLeft } from "lucide-react";
+import { Download, ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Severity } from "@/lib/scan";
+import { generateReportPdf, type PdfFinding } from "@/lib/pdf-report";
 
 type ReportContent = {
   summary?: string;
