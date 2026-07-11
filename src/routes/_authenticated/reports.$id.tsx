@@ -1,13 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RiskPill, SeverityBadge } from "@/components/severity-badge";
-import { Download, ArrowLeft } from "lucide-react";
+import { Download, ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Severity } from "@/lib/scan";
+import { generateReportPdf, type PdfFinding } from "@/lib/pdf-report";
 
 type ReportContent = {
   summary?: string;
@@ -21,6 +23,7 @@ type ReportContent = {
     recommendation: string;
     category?: string;
     evidence?: string;
+    owasp?: string;
   }>;
   tech?: Array<{ name: string; source: string; evidence: string }> | string[];
   target?: {
@@ -87,18 +90,53 @@ function ReportDetail() {
   const findings =
     content?.findings && content.findings.length
       ? content.findings.map((f, i) => ({ id: `c-${i}`, ...f }))
-      : dbFindings.map((f) => ({ ...f, evidence: undefined as string | undefined, category: undefined as string | undefined }));
+      : dbFindings.map((f) => ({ ...f, evidence: undefined as string | undefined, category: undefined as string | undefined, owasp: undefined as string | undefined }));
 
   const target = content?.target;
   const tech = content?.tech;
+  const [downloading, setDownloading] = useState(false);
+
+  const severityCounts = findings.reduce(
+    (acc, f) => { acc[f.severity as Severity] = (acc[f.severity as Severity] ?? 0) + 1; return acc; },
+    { critical: 0, high: 0, medium: 0, low: 0, info: 0 } as Record<Severity, number>,
+  );
+
+  async function downloadPdf() {
+    if (!a) return;
+    setDownloading(true);
+    try {
+      const blob = await generateReportPdf({
+        company: a.companies?.company_name ?? "Untitled",
+        website: a.companies?.website ?? "",
+        score: a.security_score,
+        risk: a.risk_level as "Low" | "Medium" | "High",
+        generatedAt: new Date(a.created_at).toLocaleString(),
+        summary: content?.summary ?? `Assessment completed. Score ${a.security_score}/100 (${a.risk_level} risk) with ${findings.length} finding(s) identified.`,
+        findings: findings as unknown as PdfFinding[],
+        target: target as never,
+        tech: (tech as never) ?? [],
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `sentrax-report-${(a.companies?.company_name ?? "site").replace(/\W+/g, "-").toLowerCase()}-${a.id.slice(0, 8)}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("PDF downloaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "PDF export failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <AppShell title="Security Report"
       actions={
         <>
           <Button asChild variant="outline" size="sm"><Link to="/reports"><ArrowLeft className="mr-2 h-4 w-4" />All reports</Link></Button>
-          <Button size="sm" className="bg-gradient-primary text-primary-foreground" onClick={() => toast.info("PDF export coming soon")}>
-            <Download className="mr-2 h-4 w-4" />Download
+          <Button size="sm" className="bg-gradient-primary text-primary-foreground" onClick={downloadPdf} disabled={downloading || !a}>
+            {downloading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Building…</> : <><Download className="mr-2 h-4 w-4" />Download PDF</>}
           </Button>
         </>
       }>
@@ -123,7 +161,14 @@ function ReportDetail() {
             <p className="mt-6 text-sm text-muted-foreground">
               SentraX identified {findings.length} finding{findings.length === 1 ? "" : "s"} across your public attack surface. Overall posture is rated <strong className="text-foreground">{a.risk_level}</strong>. Prioritize the high-severity items below within the next 30 days to materially reduce risk.
             </p>
+
+            {/* Risk graphics */}
+            <div className="mt-6 grid gap-6 md:grid-cols-2">
+              <SeverityChart counts={severityCounts} />
+              <RiskGauge score={a.security_score} risk={a.risk_level} />
+            </div>
           </Card>
+
 
           {/* Scan details */}
           {target && (
@@ -207,7 +252,12 @@ function ReportDetail() {
                 <div key={f.id} className="rounded-lg border border-border/60 bg-background/40 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-medium">{f.title}</div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {f.owasp && (
+                        <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">
+                          {f.owasp}
+                        </span>
+                      )}
                       {f.category && (
                         <span className="rounded-full border border-border/60 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                           {f.category}
@@ -291,4 +341,53 @@ function formatHeaders(headers?: Record<string, string>) {
     else lines.push(`${key}: — not set`);
   }
   return lines.join("\n");
+}
+
+const SEV_TONES: Record<Severity, string> = {
+  critical: "#991b1b", high: "#dc2626", medium: "#d97706", low: "#2563eb", info: "#64748b",
+};
+
+function SeverityChart({ counts }: { counts: Record<Severity, number> }) {
+  const order: Severity[] = ["critical", "high", "medium", "low", "info"];
+  const max = Math.max(1, ...order.map((k) => counts[k]));
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+      <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Findings by severity</div>
+      <div className="space-y-2">
+        {order.map((sev) => (
+          <div key={sev} className="flex items-center gap-2">
+            <span className="w-16 font-mono text-[10px] uppercase" style={{ color: SEV_TONES[sev] }}>{sev}</span>
+            <div className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full transition-all" style={{ width: `${(counts[sev] / max) * 100}%`, background: SEV_TONES[sev] }} />
+            </div>
+            <span className="w-6 text-right font-mono text-xs">{counts[sev]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RiskGauge({ score, risk }: { score: number; risk: string }) {
+  const pct = Math.max(0, Math.min(100, score));
+  const tone = risk === "Low" ? "#16a34a" : risk === "High" ? "#dc2626" : "#d97706";
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Risk gauge</span>
+        <span className="font-mono text-xs" style={{ color: tone }}>{risk}</span>
+      </div>
+      <div className="relative h-3 overflow-hidden rounded-full" style={{ background: "linear-gradient(90deg, #dc2626 0%, #dc2626 54%, #d97706 55%, #d97706 79%, #16a34a 80%, #16a34a 100%)" }}>
+        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2" style={{ left: `${pct}%` }}>
+          <div className="h-5 w-1 rounded-full bg-foreground shadow-lg" />
+        </div>
+      </div>
+      <div className="mt-1 flex justify-between font-mono text-[10px] text-muted-foreground">
+        <span>0</span><span>55</span><span>80</span><span>100</span>
+      </div>
+      <div className="mt-4 text-center">
+        <div className="text-3xl font-bold" style={{ color: tone }}>{score}<span className="text-sm text-muted-foreground">/100</span></div>
+      </div>
+    </div>
+  );
 }

@@ -184,14 +184,14 @@ function Landing() {
         <SectionHeader eyebrow="Pricing" title="Simple, transparent pricing" subtitle="Start free. Upgrade when you're ready to scale coverage." />
         <div className="mt-12 grid gap-5 md:grid-cols-3">
           {[
-            { name: "Starter", price: "$0", features: ["1 domain", "Monthly scans", "Basic reports"], cta: "Start free" },
-            { name: "Growth", price: "$49", featured: true, features: ["10 domains", "Weekly scans", "AI recommendations", "PDF exports"], cta: "Start 14-day trial" },
-            { name: "Enterprise", price: "Custom", features: ["Unlimited domains", "Continuous scans", "SSO / SAML", "Priority support"], cta: "Contact sales" },
+            { name: "Free", price: "$0", features: ["1 website scan", "Full OWASP Top 10 report", "PDF export with graphics", "Basic recommendations"], cta: "Start free" },
+            { name: "Pro", price: "$10", featured: true, features: ["5 websites", "Unlimited re-scans", "AI recommendations", "Professional PDF reports", "Priority email support"], cta: "Get Pro" },
+            { name: "Business", price: "$50", features: ["Unlimited websites", "Continuous scanning", "SSO / SAML", "Team dashboards", "Priority support"], cta: "Go unlimited" },
           ].map((p) => (
             <Card key={p.name} className={`relative border-border/60 bg-gradient-card p-6 ${p.featured ? "shadow-glow ring-1 ring-primary/50" : ""}`}>
               {p.featured && <span className="absolute -top-2 right-4 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground">Popular</span>}
               <div className="font-semibold">{p.name}</div>
-              <div className="mt-2 text-3xl font-bold">{p.price}<span className="text-sm font-normal text-muted-foreground">{p.price !== "Custom" && "/mo"}</span></div>
+              <div className="mt-2 text-3xl font-bold">{p.price}<span className="text-sm font-normal text-muted-foreground">/mo</span></div>
               <ul className="mt-5 space-y-2 text-sm">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-center gap-2 text-muted-foreground"><Check className="h-4 w-4 text-primary" />{f}</li>
