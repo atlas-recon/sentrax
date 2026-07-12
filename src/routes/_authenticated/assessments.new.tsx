@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -9,10 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, Check, ScanLine } from "lucide-react";
+import { Loader2, Check, ScanLine, Zap } from "lucide-react";
 import { SCAN_STEPS } from "@/lib/scan";
 import { runScan } from "@/lib/scan.functions";
 import { cn } from "@/lib/utils";
+import { useCredits } from "@/hooks/use-credits";
+import { PLAN_LABELS } from "@/lib/plan";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/assessments/new")({
   head: () => ({ meta: [{ title: "New Assessment — SentraX" }] }),
