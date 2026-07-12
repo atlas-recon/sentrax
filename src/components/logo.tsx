@@ -1,12 +1,14 @@
-import { ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import sentraxAsset from "@/assets/sentrax-logo.png.asset.json";
 
 export function Logo({ className, showText = true }: { className?: string; showText?: boolean }) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className="relative grid h-8 w-8 place-items-center rounded-lg bg-gradient-primary shadow-glow">
-        <ShieldCheck className="h-5 w-5 text-primary-foreground" />
-      </div>
+      <img
+        src={sentraxAsset.url}
+        alt="SentraX"
+        className="h-9 w-9 rounded-lg object-contain shadow-glow"
+      />
       {showText && (
         <span className="text-lg font-bold tracking-tight">
           Sentra<span className="text-gradient">X</span>
