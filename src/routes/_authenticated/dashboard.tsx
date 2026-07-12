@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { RiskPill, SeverityBadge } from "@/components/severity-badge";
 import { Activity, AlertTriangle, ShieldCheck, TrendingUp, Plus, FileText } from "lucide-react";
 import type { Severity } from "@/lib/scan";
+import { ScanCreditsCard } from "@/components/scan-credits";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — SentraX" }] }),
@@ -69,12 +70,12 @@ function Dashboard() {
           {!latest && <p className="mt-4 text-sm text-muted-foreground">Run your first assessment to generate a score.</p>}
         </Card>
 
-        <StatCard icon={Activity} label="Total Scans" value={assessments.length} tone="info" />
+        <ScanCreditsCard />
         <StatCard icon={AlertTriangle} label="Vulnerabilities" value={findings.length} tone="warning" />
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
-        <StatCard icon={ShieldCheck} label="Critical + High" value={counts.critical + counts.high} tone="success" />
+        <StatCard icon={Activity} label="Total Scans" value={assessments.length} tone="info" />
         <StatCard icon={TrendingUp} label="Score Trend" value={trendDelta(trend)} tone="primary" />
         <Card className="border-border/60 bg-gradient-card p-6">
           <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Quick Actions</div>
