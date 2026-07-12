@@ -74,8 +74,9 @@ function Dashboard() {
         <StatCard icon={AlertTriangle} label="Vulnerabilities" value={findings.length} tone="warning" />
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
+      <div className="mt-4 grid gap-4 md:grid-cols-4">
         <StatCard icon={Activity} label="Total Scans" value={assessments.length} tone="info" />
+        <StatCard icon={ShieldCheck} label="Critical + High" value={counts.critical + counts.high} tone="success" />
         <StatCard icon={TrendingUp} label="Score Trend" value={trendDelta(trend)} tone="primary" />
         <Card className="border-border/60 bg-gradient-card p-6">
           <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Quick Actions</div>
