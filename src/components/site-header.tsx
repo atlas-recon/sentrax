@@ -32,6 +32,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2">
+          <span className="hidden sm:inline-flex"><PwaInstallButton /></span>
           {authed ? (
             <Button asChild size="sm"><Link to="/dashboard">Dashboard</Link></Button>
           ) : (
