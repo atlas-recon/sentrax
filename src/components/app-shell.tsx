@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { ScanCreditsInline } from "@/components/scan-credits";
+import { PwaInstallButton } from "@/components/pwa-install";
 
 const items = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -71,7 +73,11 @@ export function AppShell({ children, title, actions }: { children: ReactNode; ti
                 <span className="font-mono text-xs text-muted-foreground">SOC ONLINE</span>
               </div>
             </div>
-            <div className="flex items-center gap-2">{actions}</div>
+            <div className="flex items-center gap-2">
+              <span className="hidden md:inline-flex"><ScanCreditsInline /></span>
+              <PwaInstallButton />
+              {actions}
+            </div>
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border/60 px-2 py-2 md:hidden">
             {items.map((it) => {

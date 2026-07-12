@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -9,10 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, Check, ScanLine } from "lucide-react";
+import { Loader2, Check, ScanLine, Zap } from "lucide-react";
 import { SCAN_STEPS } from "@/lib/scan";
 import { runScan } from "@/lib/scan.functions";
 import { cn } from "@/lib/utils";
+import { useCredits } from "@/hooks/use-credits";
+import { PLAN_LABELS } from "@/lib/plan";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/assessments/new")({
   head: () => ({ meta: [{ title: "New Assessment — SentraX" }] }),
@@ -27,12 +30,17 @@ const schema = z.object({
 function NewAssessment() {
   const navigate = useNavigate();
   const scan = useServerFn(runScan);
+  const qc = useQueryClient();
+  const credits = useCredits();
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState(-1);
   const [stepDetails, setStepDetails] = useState<Record<string, string>>({});
 
+  const outOfCredits = credits.data && credits.data.limit !== Infinity && credits.data.remaining <= 0;
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (outOfCredits) { toast.error("You've used all your scans. Upgrade your plan to continue."); return; }
     const fd = new FormData(e.currentTarget);
     const parsed = schema.safeParse({ company_name: fd.get("company_name"), website: fd.get("website") });
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
@@ -101,12 +109,33 @@ function NewAssessment() {
     });
 
     setStep(SCAN_STEPS.length);
+    qc.invalidateQueries({ queryKey: ["credits"] });
     toast.success(`Scan complete — ${result.findings.length} findings`);
     setTimeout(() => navigate({ to: "/reports/$id", params: { id: assessment.id } }), 500);
   }
 
   return (
     <AppShell title="New Security Assessment">
+      {credits.data && (
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-border/60 bg-gradient-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-md bg-primary/15 text-primary"><Zap className="h-4 w-4" /></div>
+            <div>
+              <div className="text-sm font-medium">
+                {credits.data.limit === Infinity
+                  ? "Unlimited scans"
+                  : `${credits.data.remaining} of ${credits.data.limit} scans remaining`}
+              </div>
+              <div className="text-xs text-muted-foreground">{PLAN_LABELS[credits.data.plan]} plan · {credits.data.used} used</div>
+            </div>
+          </div>
+          {outOfCredits && (
+            <Button asChild size="sm" className="bg-gradient-primary text-primary-foreground">
+              <Link to="/" hash="pricing">Upgrade plan</Link>
+            </Button>
+          )}
+        </Card>
+      )}
       <div className="grid gap-6 lg:grid-cols-5">
         <Card className="lg:col-span-2 border-border/60 bg-gradient-card p-6">
           <h2 className="font-semibold">Target</h2>
@@ -114,14 +143,14 @@ function NewAssessment() {
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="company_name">Company Name</Label>
-              <Input id="company_name" name="company_name" placeholder="Acme, Inc." disabled={running} required />
+              <Input id="company_name" name="company_name" placeholder="Acme, Inc." disabled={running || !!outOfCredits} required />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="website">Website URL</Label>
-              <Input id="website" name="website" type="url" placeholder="https://acme.com" disabled={running} required />
+              <Input id="website" name="website" type="url" placeholder="https://acme.com" disabled={running || !!outOfCredits} required />
             </div>
-            <Button type="submit" className="w-full bg-gradient-primary text-primary-foreground shadow-glow" disabled={running}>
-              {running ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning…</> : <><ScanLine className="mr-2 h-4 w-4" />Run Assessment</>}
+            <Button type="submit" className="w-full bg-gradient-primary text-primary-foreground shadow-glow" disabled={running || !!outOfCredits}>
+              {running ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning…</> : outOfCredits ? "No scans left" : <><ScanLine className="mr-2 h-4 w-4" />Run Assessment</>}
             </Button>
           </form>
         </Card>

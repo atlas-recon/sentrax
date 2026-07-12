@@ -1,0 +1,15 @@
+{
+  "name": "SentraX — Cybersecurity Risk Assessment",
+  "short_name": "SentraX",
+  "description": "AI-powered cybersecurity risk assessment for small businesses.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0f1c",
+  "theme_color": "#0a0f1c",
+  "icons": [
+    { "src": "/sentrax-logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/sentrax-logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/sentrax-logo.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
