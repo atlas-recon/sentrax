@@ -30,12 +30,17 @@ const schema = z.object({
 function NewAssessment() {
   const navigate = useNavigate();
   const scan = useServerFn(runScan);
+  const qc = useQueryClient();
+  const credits = useCredits();
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState(-1);
   const [stepDetails, setStepDetails] = useState<Record<string, string>>({});
 
+  const outOfCredits = credits.data && credits.data.limit !== Infinity && credits.data.remaining <= 0;
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (outOfCredits) { toast.error("You've used all your scans. Upgrade your plan to continue."); return; }
     const fd = new FormData(e.currentTarget);
     const parsed = schema.safeParse({ company_name: fd.get("company_name"), website: fd.get("website") });
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
