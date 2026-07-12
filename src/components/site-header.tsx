@@ -2,14 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
+import { PwaInstallButton } from "@/components/pwa-install";
 import { supabase } from "@/integrations/supabase/client";
 
 const nav = [
-  { href: "#features", label: "Features" },
-  { href: "#how", label: "How it works" },
-  { href: "#score", label: "Security Score" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#about", label: "About" },
+  { href: "/#features", label: "Features" },
+  { href: "/#how", label: "How it works" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: "/sponsors", label: "Sponsors" },
 ];
 
 export function SiteHeader() {
