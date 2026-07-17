@@ -575,11 +575,14 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
   const tech = detectTech(h, html);
   steps.push({ key: "tech", ok: true, detail: tech.length ? `Detected ${tech.length} technologies` : "No tech fingerprint found" });
 
-  // Step 5: OWASP active probes
+  // Step 5: OWASP active probes + DNS/email
   let probes: { path: string; status: number; note?: string }[] = [];
   try {
-    const owasp = await checkOwaspProbes(rawUrl, url, html);
-    findings.push(...owasp.findings);
+    const [owasp, dnsFindings] = await Promise.all([
+      checkOwaspProbes(rawUrl, url, html),
+      checkDnsAndEmail(url.hostname),
+    ]);
+    findings.push(...owasp.findings, ...dnsFindings);
     probes = owasp.probes;
   } catch { /* best-effort */ }
 
