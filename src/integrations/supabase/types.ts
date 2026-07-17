@@ -117,6 +117,48 @@ export type Database = {
           },
         ]
       }
+      payment_requests: {
+        Row: {
+          amount_usd: number
+          created_at: string
+          id: string
+          payer_name: string | null
+          payer_phone: string | null
+          plan: string
+          reference_code: string
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_usd: number
+          created_at?: string
+          id?: string
+          payer_name?: string | null
+          payer_phone?: string | null
+          plan: string
+          reference_code: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_usd?: number
+          created_at?: string
+          id?: string
+          payer_name?: string | null
+          payer_phone?: string | null
+          plan?: string
+          reference_code?: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
