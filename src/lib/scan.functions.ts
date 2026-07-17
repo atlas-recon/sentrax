@@ -157,6 +157,92 @@ const SQL_ERROR_PATTERNS = [
   /microsoft ole db provider for sql server/i, /native client.*error/i,
 ];
 
+// ---- DNS-over-HTTPS helper (Cloudflare) ----
+async function dohQuery(name: string, type: string): Promise<string[]> {
+  try {
+    const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`, {
+      headers: { accept: "application/dns-json" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!r.ok) return [];
+    const j = await r.json() as { Answer?: { data: string }[] };
+    return (j.Answer ?? []).map((a) => a.data.replace(/^"|"$/g, ""));
+  } catch { return []; }
+}
+
+async function checkDnsAndEmail(host: string): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const apex = host.split(".").slice(-2).join(".");
+
+  const [txt, dmarc, caa, dnskey, mx] = await Promise.all([
+    dohQuery(apex, "TXT"),
+    dohQuery(`_dmarc.${apex}`, "TXT"),
+    dohQuery(apex, "CAA"),
+    dohQuery(apex, "DNSKEY"),
+    dohQuery(apex, "MX"),
+  ]);
+
+  const spf = txt.find((r) => /v=spf1/i.test(r));
+  if (mx.length && !spf) {
+    findings.push({
+      category: "website", severity: "medium", owasp: "A07:2021 Identification & Auth Failures",
+      title: "Missing SPF record",
+      description: `The domain ${apex} has MX records but no SPF (v=spf1) TXT record. Attackers can spoof email from this domain.`,
+      recommendation: `Publish an SPF record listing your legitimate mail sources, e.g. "v=spf1 include:_spf.google.com -all".`,
+      evidence: `TXT ${apex}:\n${txt.length ? txt.map((t) => "  " + t).join("\n") : "  (no TXT records)"}\nMX ${apex}: ${mx.join(", ") || "none"}`,
+    });
+  } else if (spf && / \+all/i.test(spf)) {
+    findings.push({
+      category: "website", severity: "high", owasp: "A07:2021 Identification & Auth Failures",
+      title: "SPF record allows any sender (+all)",
+      description: "The SPF policy ends in '+all', permitting anyone to send email from this domain.",
+      recommendation: "Change the SPF terminator to '-all' (hard fail) or at least '~all' (soft fail).",
+      evidence: `SPF: ${spf}`,
+    });
+  }
+
+  const dmarcRec = dmarc.find((r) => /v=DMARC1/i.test(r));
+  if (mx.length && !dmarcRec) {
+    findings.push({
+      category: "website", severity: "medium", owasp: "A07:2021 Identification & Auth Failures",
+      title: "Missing DMARC record",
+      description: `No DMARC policy at _dmarc.${apex}. Without DMARC, spoofed email cannot be rejected reliably even with SPF/DKIM.`,
+      recommendation: `Publish "v=DMARC1; p=reject; rua=mailto:dmarc@${apex}" and monitor reports, then tighten to p=reject.`,
+      evidence: `TXT _dmarc.${apex}: ${dmarc.length ? dmarc.join(" | ") : "(none)"}`,
+    });
+  } else if (dmarcRec && /p=none/i.test(dmarcRec)) {
+    findings.push({
+      category: "website", severity: "low", owasp: "A07:2021 Identification & Auth Failures",
+      title: "DMARC policy is monitor-only (p=none)",
+      description: "DMARC is published but the policy is p=none, meaning failing messages are still delivered.",
+      recommendation: "After reviewing aggregate reports, move to p=quarantine and then p=reject.",
+      evidence: `DMARC: ${dmarcRec}`,
+    });
+  }
+
+  if (caa.length === 0) {
+    findings.push({
+      category: "website", severity: "low", owasp: "A02:2021 Cryptographic Failures",
+      title: "No CAA records",
+      description: `The domain has no CAA record, so any Certificate Authority is allowed to issue a certificate for ${apex}. Attackers who compromise a CA (or a domain-validation channel) can silently issue valid certs.`,
+      recommendation: `Publish a CAA record pinning your CA, e.g. "0 issue \"letsencrypt.org\"".`,
+      evidence: `CAA ${apex}: (empty)`,
+    });
+  }
+
+  if (dnskey.length === 0) {
+    findings.push({
+      category: "website", severity: "info", owasp: "A05:2021 Security Misconfiguration",
+      title: "DNSSEC not enabled",
+      description: "The domain has no DNSKEY record, so DNS responses are not cryptographically signed. Attackers on the network path can poison DNS responses.",
+      recommendation: "Enable DNSSEC at your DNS provider / registrar and publish the DS record at the parent zone.",
+      evidence: `DNSKEY ${apex}: (empty)`,
+    });
+  }
+
+  return findings;
+}
+
 async function checkOwaspProbes(rawUrl: string, url: URL, html: string): Promise<{ findings: Finding[]; probes: { path: string; status: number; note?: string }[] }> {
   const findings: Finding[] = [];
   const probes: { path: string; status: number; note?: string }[] = [];
