@@ -131,7 +131,7 @@ function NewAssessment() {
           </div>
           {outOfCredits && (
             <Button asChild size="sm" className="bg-gradient-primary text-primary-foreground">
-              <Link to="/" hash="pricing">Upgrade plan</Link>
+              <Link to="/upgrade">Upgrade plan</Link>
             </Button>
           )}
         </Card>
