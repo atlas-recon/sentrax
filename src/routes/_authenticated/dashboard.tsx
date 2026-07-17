@@ -8,6 +8,7 @@ import { RiskPill, SeverityBadge } from "@/components/severity-badge";
 import { Activity, AlertTriangle, ShieldCheck, TrendingUp, Plus, FileText } from "lucide-react";
 import type { Severity } from "@/lib/scan";
 import { ScanCreditsCard } from "@/components/scan-credits";
+import { VulnExplainer } from "@/components/vuln-explainer";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — SentraX" }] }),
@@ -117,6 +118,10 @@ function Dashboard() {
             })}
           </div>
         </Card>
+      </div>
+
+      <div className="mt-4">
+        <VulnExplainer findingTitles={findings.map((f) => f.title)} />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">

@@ -30,7 +30,7 @@ export function ScanCreditsCard() {
       </div>
       {!unlimited && data.remaining === 0 && (
         <Button asChild size="sm" className="mt-4 w-full bg-gradient-primary text-primary-foreground">
-          <Link to="/" hash="pricing"><Zap className="mr-2 h-4 w-4" />Upgrade plan</Link>
+          <Link to="/upgrade"><Zap className="mr-2 h-4 w-4" />Upgrade plan</Link>
         </Button>
       )}
     </Card>

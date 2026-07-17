@@ -157,6 +157,92 @@ const SQL_ERROR_PATTERNS = [
   /microsoft ole db provider for sql server/i, /native client.*error/i,
 ];
 
+// ---- DNS-over-HTTPS helper (Cloudflare) ----
+async function dohQuery(name: string, type: string): Promise<string[]> {
+  try {
+    const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`, {
+      headers: { accept: "application/dns-json" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!r.ok) return [];
+    const j = await r.json() as { Answer?: { data: string }[] };
+    return (j.Answer ?? []).map((a) => a.data.replace(/^"|"$/g, ""));
+  } catch { return []; }
+}
+
+async function checkDnsAndEmail(host: string): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const apex = host.split(".").slice(-2).join(".");
+
+  const [txt, dmarc, caa, dnskey, mx] = await Promise.all([
+    dohQuery(apex, "TXT"),
+    dohQuery(`_dmarc.${apex}`, "TXT"),
+    dohQuery(apex, "CAA"),
+    dohQuery(apex, "DNSKEY"),
+    dohQuery(apex, "MX"),
+  ]);
+
+  const spf = txt.find((r) => /v=spf1/i.test(r));
+  if (mx.length && !spf) {
+    findings.push({
+      category: "website", severity: "medium", owasp: "A07:2021 Identification & Auth Failures",
+      title: "Missing SPF record",
+      description: `The domain ${apex} has MX records but no SPF (v=spf1) TXT record. Attackers can spoof email from this domain.`,
+      recommendation: `Publish an SPF record listing your legitimate mail sources, e.g. "v=spf1 include:_spf.google.com -all".`,
+      evidence: `TXT ${apex}:\n${txt.length ? txt.map((t) => "  " + t).join("\n") : "  (no TXT records)"}\nMX ${apex}: ${mx.join(", ") || "none"}`,
+    });
+  } else if (spf && / \+all/i.test(spf)) {
+    findings.push({
+      category: "website", severity: "high", owasp: "A07:2021 Identification & Auth Failures",
+      title: "SPF record allows any sender (+all)",
+      description: "The SPF policy ends in '+all', permitting anyone to send email from this domain.",
+      recommendation: "Change the SPF terminator to '-all' (hard fail) or at least '~all' (soft fail).",
+      evidence: `SPF: ${spf}`,
+    });
+  }
+
+  const dmarcRec = dmarc.find((r) => /v=DMARC1/i.test(r));
+  if (mx.length && !dmarcRec) {
+    findings.push({
+      category: "website", severity: "medium", owasp: "A07:2021 Identification & Auth Failures",
+      title: "Missing DMARC record",
+      description: `No DMARC policy at _dmarc.${apex}. Without DMARC, spoofed email cannot be rejected reliably even with SPF/DKIM.`,
+      recommendation: `Publish "v=DMARC1; p=reject; rua=mailto:dmarc@${apex}" and monitor reports, then tighten to p=reject.`,
+      evidence: `TXT _dmarc.${apex}: ${dmarc.length ? dmarc.join(" | ") : "(none)"}`,
+    });
+  } else if (dmarcRec && /p=none/i.test(dmarcRec)) {
+    findings.push({
+      category: "website", severity: "low", owasp: "A07:2021 Identification & Auth Failures",
+      title: "DMARC policy is monitor-only (p=none)",
+      description: "DMARC is published but the policy is p=none, meaning failing messages are still delivered.",
+      recommendation: "After reviewing aggregate reports, move to p=quarantine and then p=reject.",
+      evidence: `DMARC: ${dmarcRec}`,
+    });
+  }
+
+  if (caa.length === 0) {
+    findings.push({
+      category: "website", severity: "low", owasp: "A02:2021 Cryptographic Failures",
+      title: "No CAA records",
+      description: `The domain has no CAA record, so any Certificate Authority is allowed to issue a certificate for ${apex}. Attackers who compromise a CA (or a domain-validation channel) can silently issue valid certs.`,
+      recommendation: `Publish a CAA record pinning your CA, e.g. "0 issue \"letsencrypt.org\"".`,
+      evidence: `CAA ${apex}: (empty)`,
+    });
+  }
+
+  if (dnskey.length === 0) {
+    findings.push({
+      category: "website", severity: "info", owasp: "A05:2021 Security Misconfiguration",
+      title: "DNSSEC not enabled",
+      description: "The domain has no DNSKEY record, so DNS responses are not cryptographically signed. Attackers on the network path can poison DNS responses.",
+      recommendation: "Enable DNSSEC at your DNS provider / registrar and publish the DS record at the parent zone.",
+      evidence: `DNSKEY ${apex}: (empty)`,
+    });
+  }
+
+  return findings;
+}
+
 async function checkOwaspProbes(rawUrl: string, url: URL, html: string): Promise<{ findings: Finding[]; probes: { path: string; status: number; note?: string }[] }> {
   const findings: Finding[] = [];
   const probes: { path: string; status: number; note?: string }[] = [];
@@ -328,6 +414,69 @@ async function checkOwaspProbes(rawUrl: string, url: URL, html: string): Promise
     }
   }
 
+  // ---- 8. HTTP TRACE method enabled (A05) ----
+  const traceResp = await safeFetch(rawUrl, { method: "TRACE" });
+  if (traceResp) {
+    probes.push({ path: "TRACE /", status: traceResp.status });
+    if (traceResp.status === 200) {
+      findings.push({
+        category: "headers", severity: "medium", owasp: "A05:2021 Security Misconfiguration",
+        title: "HTTP TRACE method enabled",
+        description: "The server responds to TRACE requests, which can be abused in Cross-Site Tracing (XST) attacks to steal cookies protected by HttpOnly.",
+        recommendation: "Disable TRACE at the web server (`TraceEnable Off` in Apache, drop the method in nginx/edge).",
+        evidence: `TRACE ${rawUrl}\nStatus: ${traceResp.status}`,
+      });
+    }
+  }
+
+  // ---- 9. Exposed admin panels (A01) ----
+  const adminPaths = ["/admin", "/admin/", "/wp-admin/", "/administrator/", "/phpmyadmin/", "/.well-known/security.txt"];
+  for (const p of adminPaths) {
+    const r = await safeFetch(base + p);
+    if (!r) continue;
+    probes.push({ path: p, status: r.status });
+    if (p === "/.well-known/security.txt") {
+      if (r.status === 404) {
+        findings.push({
+          category: "exposure", severity: "info", owasp: "A05:2021 Security Misconfiguration",
+          title: "No security.txt disclosure policy",
+          description: "The site does not publish /.well-known/security.txt, so security researchers have no standard channel to report vulnerabilities.",
+          recommendation: "Publish a security.txt with a Contact: mailto: and Expires: date per RFC 9116.",
+          evidence: `GET ${base}/.well-known/security.txt\nStatus: 404`,
+        });
+      }
+      continue;
+    }
+    if (r.status === 200) {
+      const body = await r.text().catch(() => "");
+      if (/login|password|username|sign in/i.test(body)) {
+        findings.push({
+          category: "exposure", severity: "medium", owasp: "A01:2021 Broken Access Control",
+          title: `Admin interface reachable at ${p}`,
+          description: `The path ${p} returns a login page publicly. Brute-force and credential-stuffing attackers scan for exactly these endpoints.`,
+          recommendation: `Restrict ${p} to VPN / office IPs, add MFA, and rate-limit login attempts.`,
+          evidence: `GET ${base + p}\nStatus: 200\nMatches: login form keywords`,
+        });
+      }
+    }
+  }
+
+  // ---- 10. Missing Subresource Integrity on cross-origin scripts (A08) ----
+  if (html) {
+    const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi));
+    const external = scripts.filter((m) => /^https?:\/\//i.test(m[1]) && !m[1].includes(url.hostname));
+    const withoutSri = external.filter((m) => !/integrity=["']/i.test(m[0]));
+    if (withoutSri.length) {
+      findings.push({
+        category: "content", severity: "low", owasp: "A08:2021 Software & Data Integrity Failures",
+        title: `${withoutSri.length} external script(s) missing Subresource Integrity`,
+        description: "Third-party scripts are loaded without `integrity=\"sha384-...\"`. If the CDN is compromised, attackers can inject malicious code with no browser check.",
+        recommendation: "Add SRI hashes to all cross-origin <script> and <link rel=\"stylesheet\"> tags. Pin exact versions.",
+        evidence: withoutSri.slice(0, 5).map((m) => `  • ${m[1]}`).join("\n"),
+      });
+    }
+  }
+
   return { findings, probes };
 }
 
@@ -489,11 +638,14 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
   const tech = detectTech(h, html);
   steps.push({ key: "tech", ok: true, detail: tech.length ? `Detected ${tech.length} technologies` : "No tech fingerprint found" });
 
-  // Step 5: OWASP active probes
+  // Step 5: OWASP active probes + DNS/email
   let probes: { path: string; status: number; note?: string }[] = [];
   try {
-    const owasp = await checkOwaspProbes(rawUrl, url, html);
-    findings.push(...owasp.findings);
+    const [owasp, dnsFindings] = await Promise.all([
+      checkOwaspProbes(rawUrl, url, html),
+      checkDnsAndEmail(url.hostname),
+    ]);
+    findings.push(...owasp.findings, ...dnsFindings);
     probes = owasp.probes;
   } catch { /* best-effort */ }
 

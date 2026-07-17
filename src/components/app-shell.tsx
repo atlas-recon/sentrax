@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, ShieldAlert, FileText, User, LogOut, Plus } from "lucide-react";
+import { LayoutDashboard, ShieldAlert, FileText, User, LogOut, Plus, Sparkles } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ const items = [
   { to: "/assessments/new", label: "New Assessment", icon: Plus },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/profile", label: "Profile", icon: User },
+  { to: "/upgrade", label: "Upgrade", icon: Sparkles },
 ] as const;
 
 export function AppShell({ children, title, actions }: { children: ReactNode; title: string; actions?: ReactNode }) {

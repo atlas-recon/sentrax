@@ -198,7 +198,9 @@ function Landing() {
                 ))}
               </ul>
               <Button asChild className="mt-6 w-full" variant={p.featured ? "default" : "outline"}>
-                <Link to="/auth" search={{ mode: "register" }}>{p.cta}</Link>
+                {p.name === "Free"
+                  ? <Link to="/auth" search={{ mode: "register" }}>{p.cta}</Link>
+                  : <Link to="/upgrade">{p.cta}</Link>}
               </Button>
             </Card>
           ))}
