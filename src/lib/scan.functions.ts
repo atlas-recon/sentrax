@@ -414,6 +414,69 @@ async function checkOwaspProbes(rawUrl: string, url: URL, html: string): Promise
     }
   }
 
+  // ---- 8. HTTP TRACE method enabled (A05) ----
+  const traceResp = await safeFetch(rawUrl, { method: "TRACE" });
+  if (traceResp) {
+    probes.push({ path: "TRACE /", status: traceResp.status });
+    if (traceResp.status === 200) {
+      findings.push({
+        category: "headers", severity: "medium", owasp: "A05:2021 Security Misconfiguration",
+        title: "HTTP TRACE method enabled",
+        description: "The server responds to TRACE requests, which can be abused in Cross-Site Tracing (XST) attacks to steal cookies protected by HttpOnly.",
+        recommendation: "Disable TRACE at the web server (`TraceEnable Off` in Apache, drop the method in nginx/edge).",
+        evidence: `TRACE ${rawUrl}\nStatus: ${traceResp.status}`,
+      });
+    }
+  }
+
+  // ---- 9. Exposed admin panels (A01) ----
+  const adminPaths = ["/admin", "/admin/", "/wp-admin/", "/administrator/", "/phpmyadmin/", "/.well-known/security.txt"];
+  for (const p of adminPaths) {
+    const r = await safeFetch(base + p);
+    if (!r) continue;
+    probes.push({ path: p, status: r.status });
+    if (p === "/.well-known/security.txt") {
+      if (r.status === 404) {
+        findings.push({
+          category: "exposure", severity: "info", owasp: "A05:2021 Security Misconfiguration",
+          title: "No security.txt disclosure policy",
+          description: "The site does not publish /.well-known/security.txt, so security researchers have no standard channel to report vulnerabilities.",
+          recommendation: "Publish a security.txt with a Contact: mailto: and Expires: date per RFC 9116.",
+          evidence: `GET ${base}/.well-known/security.txt\nStatus: 404`,
+        });
+      }
+      continue;
+    }
+    if (r.status === 200) {
+      const body = await r.text().catch(() => "");
+      if (/login|password|username|sign in/i.test(body)) {
+        findings.push({
+          category: "exposure", severity: "medium", owasp: "A01:2021 Broken Access Control",
+          title: `Admin interface reachable at ${p}`,
+          description: `The path ${p} returns a login page publicly. Brute-force and credential-stuffing attackers scan for exactly these endpoints.`,
+          recommendation: `Restrict ${p} to VPN / office IPs, add MFA, and rate-limit login attempts.`,
+          evidence: `GET ${base + p}\nStatus: 200\nMatches: login form keywords`,
+        });
+      }
+    }
+  }
+
+  // ---- 10. Missing Subresource Integrity on cross-origin scripts (A08) ----
+  if (html) {
+    const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi));
+    const external = scripts.filter((m) => /^https?:\/\//i.test(m[1]) && !m[1].includes(url.hostname));
+    const withoutSri = external.filter((m) => !/integrity=["']/i.test(m[0]));
+    if (withoutSri.length) {
+      findings.push({
+        category: "content", severity: "low", owasp: "A08:2021 Software & Data Integrity Failures",
+        title: `${withoutSri.length} external script(s) missing Subresource Integrity`,
+        description: "Third-party scripts are loaded without `integrity=\"sha384-...\"`. If the CDN is compromised, attackers can inject malicious code with no browser check.",
+        recommendation: "Add SRI hashes to all cross-origin <script> and <link rel=\"stylesheet\"> tags. Pin exact versions.",
+        evidence: withoutSri.slice(0, 5).map((m) => `  • ${m[1]}`).join("\n"),
+      });
+    }
+  }
+
   return { findings, probes };
 }
 
