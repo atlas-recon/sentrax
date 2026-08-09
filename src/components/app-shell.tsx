@@ -8,19 +8,23 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { ScanCreditsInline } from "@/components/scan-credits";
 import { PwaInstallButton } from "@/components/pwa-install";
+import { useIsDesktopApp } from "@/lib/platform";
 
 const items = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/assessments/new", label: "New Assessment", icon: Plus },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/profile", label: "Profile", icon: User },
-  { to: "/upgrade", label: "Upgrade", icon: Sparkles },
 ] as const;
+
+const upgradeItem = { to: "/upgrade", label: "Upgrade", icon: Sparkles } as const;
 
 export function AppShell({ children, title, actions }: { children: ReactNode; title: string; actions?: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const desktop = useIsDesktopApp();
+  const navItems = desktop ? items : [...items, upgradeItem];
 
   async function signOut() {
     await qc.cancelQueries();
@@ -36,7 +40,7 @@ export function AppShell({ children, title, actions }: { children: ReactNode; ti
           <Link to="/"><Logo /></Link>
         </div>
         <nav className="flex-1 space-y-1 p-3">
-          {items.map((it) => {
+          {navItems.map((it) => {
             const active = pathname === it.to || (it.to !== "/dashboard" && pathname.startsWith(it.to));
             const Icon = it.icon;
             return (
@@ -81,7 +85,7 @@ export function AppShell({ children, title, actions }: { children: ReactNode; ti
             </div>
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border/60 px-2 py-2 md:hidden">
-            {items.map((it) => {
+            {navItems.map((it) => {
               const active = pathname === it.to || (it.to !== "/dashboard" && pathname.startsWith(it.to));
               return (
                 <Link key={it.to} to={it.to} className={cn("shrink-0 rounded-md px-3 py-1.5 text-xs", active ? "bg-accent text-accent-foreground" : "text-muted-foreground")}>
