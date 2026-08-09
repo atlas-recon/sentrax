@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useIsDesktopApp } from "@/lib/platform";
 import { Check, Copy, Phone, Smartphone, Clock, ShieldCheck, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/upgrade")({
@@ -37,6 +38,7 @@ const schema = z.object({
 
 function UpgradePage() {
   const qc = useQueryClient();
+  const desktop = useIsDesktopApp();
   const [plan, setPlan] = useState<"pro" | "business">("pro");
   const [reference] = useState(makeRef);
   const [submitting, setSubmitting] = useState(false);
