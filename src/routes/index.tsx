@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Logo } from "@/components/logo";
 
+import { useIsDesktopApp } from "@/lib/platform";
+
 export const Route = createFileRoute("/")({
   component: Landing,
 });
 
 function Landing() {
+  const desktop = useIsDesktopApp();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
@@ -179,7 +182,20 @@ function Landing() {
         </div>
       </section>
 
+      {/* Linux desktop */}
+      <section className="border-t border-border/60 bg-card/40">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+          <SectionHeader eyebrow="Linux" title="SentraX Desktop for Linux" subtitle="Install the full penetration-testing GUI natively on Athena OS and other Linux distributions — every tool unlocked, no payment." />
+          <div className="mt-8 flex justify-center">
+            <Button asChild size="lg" className="bg-gradient-primary text-primary-foreground shadow-glow">
+              <Link to="/download">Get the Linux app</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
+      {!desktop && (
       <section id="pricing" className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
         <SectionHeader eyebrow="Pricing" title="Simple, transparent pricing" subtitle="Start free. Upgrade when you're ready to scale coverage." />
         <div className="mt-12 grid gap-5 md:grid-cols-3">
@@ -206,6 +222,7 @@ function Landing() {
           ))}
         </div>
       </section>
+      )}
 
       {/* About */}
       <section id="about" className="border-t border-border/60 bg-card/40">

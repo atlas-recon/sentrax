@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useIsDesktopApp } from "@/lib/platform";
 import { Check, Copy, Phone, Smartphone, Clock, ShieldCheck, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/upgrade")({
@@ -37,6 +38,7 @@ const schema = z.object({
 
 function UpgradePage() {
   const qc = useQueryClient();
+  const desktop = useIsDesktopApp();
   const [plan, setPlan] = useState<"pro" | "business">("pro");
   const [reference] = useState(makeRef);
   const [submitting, setSubmitting] = useState(false);
@@ -87,7 +89,29 @@ function UpgradePage() {
     (e.target as HTMLFormElement).reset();
   }
 
+  if (desktop) {
+    return (
+      <AppShell
+        title="Plan"
+        actions={<Button asChild variant="outline" size="sm"><Link to="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Dashboard</Link></Button>}
+      >
+        <Card className="max-w-2xl border-border/60 bg-gradient-card p-8 text-center">
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-primary/15 text-primary"><ShieldCheck className="h-6 w-6" /></div>
+          <h2 className="mt-4 text-xl font-semibold">Everything is unlocked</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You are running the SentraX Linux desktop build. Unlimited website assessments, all OWASP checks and
+            full PDF reporting are enabled — there is no payment or subscription on Linux.
+          </p>
+          <Button asChild className="mt-6 bg-gradient-primary text-primary-foreground shadow-glow">
+            <Link to="/assessments/new">Run an assessment</Link>
+          </Button>
+        </Card>
+      </AppShell>
+    );
+  }
+
   return (
+
     <AppShell
       title="Upgrade Plan"
       actions={<Button asChild variant="outline" size="sm"><Link to="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Dashboard</Link></Button>}
