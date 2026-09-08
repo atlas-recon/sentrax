@@ -1,17 +1,13 @@
 import { cn } from "@/lib/utils";
-import sentraxAsset from "@/assets/sentrax-logo.png.asset.json";
+import mark from "@/assets/sentrax-mark.png";
 
 export function Logo({ className, showText = true }: { className?: string; showText?: boolean }) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <img
-        src={sentraxAsset.url}
-        alt="SentraX"
-        className="h-9 w-9 rounded-lg object-contain shadow-glow"
-      />
+    <div className={cn("flex items-center gap-2.5", className)}>
+      <img src={mark} alt="SentraX" width={36} height={36} className="h-8 w-8 object-contain" />
       {showText && (
-        <span className="text-lg font-bold tracking-tight">
-          Sentra<span className="text-gradient">X</span>
+        <span className="text-lg font-semibold tracking-tight text-foreground">
+          SentraX
         </span>
       )}
     </div>
