@@ -1,117 +1,121 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ShieldCheck, Activity, Radar, Zap, Lock, Cpu, TrendingUp, AlertTriangle, ArrowRight, Check } from "lucide-react";
+import {
+  ShieldCheck, Activity, Radar, Lock, Cpu, FileText, ArrowRight, Check,
+  Mail, Phone, MapPin, Instagram, Building2, Users, Clock,
+} from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Logo } from "@/components/logo";
-
-import { useIsDesktopApp } from "@/lib/platform";
+import heroImage from "@/assets/hero-business.jpg";
+import securityImage from "@/assets/section-security.jpg";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "SentraX — Cybersecurity Risk Assessment for Business" },
+      { name: "description", content: "SentraX is a business cybersecurity company. We assess your website security, report the risks in plain language, and help you fix them fast." },
+      { property: "og:title", content: "SentraX — Cybersecurity Risk Assessment for Business" },
+      { property: "og:description", content: "Website security assessments, executive reports and remediation guidance for growing companies." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Landing,
 });
 
 function Landing() {
-  const desktop = useIsDesktopApp();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-hero">
-        <div className="absolute inset-0 grid-bg opacity-40" />
-        <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32">
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse-glow" />
-              AI-powered threat intelligence
-            </div>
-            <h1 className="text-balance text-4xl font-bold leading-tight tracking-tight sm:text-6xl">
-              See Your Cyber Risk <span className="text-gradient">Before Attackers Do</span>
+      <section className="border-b border-border bg-hero">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-28">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-primary">
+              <ShieldCheck className="h-3.5 w-3.5" /> Cybersecurity for growing businesses
+            </span>
+            <h1 className="mt-5 text-balance text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+              Know your cyber risk. <span className="text-primary">Fix it with confidence.</span>
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
-              SentraX helps businesses analyze their security posture, identify risks, and receive actionable security recommendations — in minutes, not weeks.
+            <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+              SentraX assesses your website and online systems, explains every weakness in plain business
+              language, and gives your team a clear plan to close the gaps.
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button asChild size="lg" className="bg-gradient-primary text-primary-foreground shadow-glow">
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button asChild size="lg">
                 <Link to="/auth" search={{ mode: "register" }}>
-                  Start Security Assessment <ArrowRight className="ml-2 h-4 w-4" />
+                  Request an assessment <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link to="/dashboard">Explore Dashboard</Link>
+                <a href="#services">Our services</a>
               </Button>
             </div>
+            <dl className="mt-10 grid max-w-lg grid-cols-3 gap-6 border-t border-border pt-6">
+              {[["120+", "Assessments delivered"], ["<2 min", "Baseline scan time"], ["24/7", "Monitoring available"]].map(([v, l]) => (
+                <div key={l}>
+                  <dt className="text-2xl font-semibold text-primary">{v}</dt>
+                  <dd className="mt-1 text-xs text-muted-foreground">{l}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
-
-          {/* Preview panel */}
-          <div className="relative mx-auto mt-16 max-w-5xl">
-            <div className="absolute -inset-4 rounded-2xl bg-primary/20 blur-3xl" />
-            <Card className="relative overflow-hidden border-border/60 bg-gradient-card p-6 shadow-elegant">
-              <div className="flex items-center justify-between border-b border-border/60 pb-4">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-warning/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-success/70" />
-                  <span className="ml-3 font-mono text-xs text-muted-foreground">sentrax.io/soc</span>
-                </div>
-                <span className="font-mono text-xs text-primary">LIVE</span>
-              </div>
-              <div className="grid gap-4 pt-6 md:grid-cols-3">
-                <ScoreOrb />
-                <div className="md:col-span-2 grid gap-3 sm:grid-cols-2">
-                  <MiniStat icon={AlertTriangle} label="Open findings" value="12" tone="warning" />
-                  <MiniStat icon={ShieldCheck} label="Patched this week" value="27" tone="success" />
-                  <MiniStat icon={Activity} label="Scans (7d)" value="146" tone="info" />
-                  <MiniStat icon={TrendingUp} label="Score trend" value="+8" tone="primary" />
-                </div>
-              </div>
-            </Card>
+          <div className="relative">
+            <img
+              src={heroImage}
+              alt="Security consultants reviewing a company risk dashboard"
+              width={1600}
+              height={1104}
+              className="w-full rounded-xl border border-border object-cover shadow-elegant"
+            />
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section id="how" className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
-        <SectionHeader eyebrow="Workflow" title="How SentraX Works" subtitle="From URL to actionable report in five steps." />
-        <div className="mt-12 grid gap-4 md:grid-cols-5">
+      {/* Services */}
+      <section id="services" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+        <SectionHeader eyebrow="Services" title="What we do for your business" subtitle="A complete security practice, delivered as a service and backed by our online assessment platform." />
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
           {[
-            { icon: Radar, t: "Website Analysis" },
-            { icon: Lock, t: "SSL / TLS Check" },
-            { icon: ShieldCheck, t: "Security Headers" },
-            { icon: Cpu, t: "Technology Detection" },
-            { icon: Activity, t: "Risk Evaluation" },
-          ].map((s, i) => (
-            <Card key={s.t} className="relative border-border/60 bg-gradient-card p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <s.icon className="h-5 w-5 text-primary" />
-                <span className="font-mono text-xs text-muted-foreground">0{i + 1}</span>
+            { icon: Radar, t: "Website Security Assessment", d: "Automated and manual review of your public web presence, mapped to the OWASP Top 10." },
+            { icon: Lock, t: "SSL / TLS & Configuration", d: "Certificates, protocols, security headers, cookies and DNS/email protection reviewed end to end." },
+            { icon: FileText, t: "Executive Reporting", d: "Board-ready PDF reports with an overall risk score, prioritised findings and remediation steps." },
+            { icon: Cpu, t: "AI Risk Analysis", d: "Each finding is explained in business terms — what it means, what it costs, how to fix it." },
+            { icon: Activity, t: "Continuous Monitoring", d: "Scheduled re-assessments so new weaknesses are caught as your site changes." },
+            { icon: Users, t: "Advisory & Training", d: "Guidance for your developers and staff on secure practice and compliance readiness." },
+          ].map((f) => (
+            <Card key={f.t} className="border-border bg-card p-6 transition-shadow hover:shadow-elegant">
+              <div className="mb-4 grid h-11 w-11 place-items-center rounded-md bg-primary/10 text-primary">
+                <f.icon className="h-5 w-5" />
               </div>
-              <div className="font-semibold">{s.t}</div>
+              <h3 className="font-semibold">{f.t}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{f.d}</p>
             </Card>
           ))}
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="border-y border-border/60 bg-card/40">
-        <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
-          <SectionHeader eyebrow="Platform" title="Enterprise-grade features" subtitle="Everything your team needs to reduce risk continuously." />
-          <div className="mt-12 grid gap-5 md:grid-cols-3">
+      {/* How it works */}
+      <section id="how" className="border-y border-border bg-secondary/50">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+          <SectionHeader eyebrow="Process" title="How an assessment works" subtitle="From your web address to an actionable report — five clear steps." />
+          <div className="mt-12 grid gap-4 md:grid-cols-5">
             {[
-              { icon: Radar, t: "Continuous Discovery", d: "Automated scans surface new attack surface as you ship." },
-              { icon: Cpu, t: "AI Risk Analysis", d: "LLM-assisted triage explains impact and next steps in plain English." },
-              { icon: ShieldCheck, t: "Actionable Reports", d: "Executive-ready PDFs and technical detail for engineers." },
-              { icon: Lock, t: "SSL / TLS Insights", d: "Certificate chain, cipher and protocol posture at a glance." },
-              { icon: Zap, t: "Fast Assessments", d: "Full baseline scan in under two minutes." },
-              { icon: Activity, t: "SOC Dashboard", d: "Track your security score and trends over time." },
-            ].map((f) => (
-              <Card key={f.t} className="border-border/60 bg-gradient-card p-6 transition-all hover:shadow-glow">
-                <div className="mb-4 grid h-10 w-10 place-items-center rounded-lg bg-primary/15 text-primary">
-                  <f.icon className="h-5 w-5" />
+              { icon: Radar, t: "Website analysis", d: "We map your public surface." },
+              { icon: Lock, t: "SSL / TLS check", d: "Certificates and encryption." },
+              { icon: ShieldCheck, t: "Security headers", d: "Browser protections in place." },
+              { icon: Cpu, t: "Technology review", d: "Frameworks and exposures." },
+              { icon: Activity, t: "Risk evaluation", d: "Scored, prioritised, reported." },
+            ].map((s, i) => (
+              <Card key={s.t} className="border-border bg-card p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <s.icon className="h-5 w-5 text-primary" />
+                  <span className="font-mono text-xs text-muted-foreground">0{i + 1}</span>
                 </div>
-                <div className="font-semibold">{f.t}</div>
-                <p className="mt-1 text-sm text-muted-foreground">{f.d}</p>
+                <div className="font-medium">{s.t}</div>
+                <p className="mt-1 text-sm text-muted-foreground">{s.d}</p>
               </Card>
             ))}
           </div>
@@ -119,16 +123,24 @@ function Landing() {
       </section>
 
       {/* Why */}
-      <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
-        <div className="grid items-center gap-12 md:grid-cols-2">
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+        <div className="grid items-center gap-12 lg:grid-cols-2">
+          <img
+            src={securityImage}
+            alt="Secure data centre protected by encryption"
+            loading="lazy"
+            width={1408}
+            height={1008}
+            className="w-full rounded-xl border border-border object-cover shadow-elegant"
+          />
           <div>
-            <SectionHeader align="left" eyebrow="Why now" title="Why Businesses Need Cybersecurity" subtitle="Small and mid-sized companies are the primary target of modern attackers." />
+            <SectionHeader align="left" eyebrow="Why SentraX" title="Security that speaks business" subtitle="Most attacks succeed through weaknesses that are already known and fixable — if someone is looking." />
             <ul className="mt-8 space-y-3 text-sm">
               {[
-                "43% of cyber attacks target small businesses.",
-                "The average breach costs $4.45M in downtime and remediation.",
-                "Most exploited weaknesses are known and fixable — if you can see them.",
-                "Compliance frameworks (SOC 2, ISO 27001) require continuous monitoring.",
+                "43% of cyber attacks target small and mid-sized companies.",
+                "The average breach costs millions in downtime and recovery.",
+                "Reports written for executives, with detail your developers can act on.",
+                "Supports readiness for SOC 2, ISO 27001 and client security reviews.",
               ].map((s) => (
                 <li key={s} className="flex gap-3">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -137,41 +149,24 @@ function Landing() {
               ))}
             </ul>
           </div>
-          <Card className="border-border/60 bg-gradient-card p-8 shadow-elegant">
-            <div className="mb-6 flex items-center justify-between">
-              <span className="font-mono text-xs text-muted-foreground">RISK TIMELINE</span>
-              <span className="font-mono text-xs text-primary">▲ Improving</span>
-            </div>
-            <div className="space-y-4">
-              {[["Jan", 62], ["Feb", 68], ["Mar", 71], ["Apr", 76], ["May", 82], ["Jun", 85]].map(([m, v]) => (
-                <div key={m as string} className="flex items-center gap-3">
-                  <span className="w-8 font-mono text-xs text-muted-foreground">{m}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full bg-gradient-primary" style={{ width: `${v}%` }} />
-                  </div>
-                  <span className="w-8 text-right font-mono text-xs">{v}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
         </div>
       </section>
 
-      {/* Security score */}
-      <section id="score" className="border-y border-border/60 bg-card/40">
-        <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
-          <SectionHeader eyebrow="Scoring" title="Understand your Security Score" subtitle="A single number that captures your posture across five domains." />
+      {/* Scoring */}
+      <section id="score" className="border-y border-border bg-secondary/50">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+          <SectionHeader eyebrow="Scoring" title="One number your board can follow" subtitle="Every assessment produces a security score from 0 to 100, tracked over time." />
           <div className="mt-12 grid items-center gap-10 md:grid-cols-2">
-            <div className="flex justify-center"><ScoreOrb big /></div>
+            <div className="flex justify-center"><ScoreOrb /></div>
             <div className="space-y-4">
               {[
                 { r: "80 – 100", risk: "Low", tone: "text-success", d: "Mature posture, small backlog of low-severity items." },
                 { r: "55 – 79", risk: "Medium", tone: "text-warning", d: "Meaningful weaknesses present, remediation should be scheduled." },
-                { r: "0 – 54", risk: "High", tone: "text-destructive", d: "Immediate action required — active exposure to common attacks." },
+                { r: "0 – 54", risk: "High", tone: "text-destructive", d: "Immediate action required — exposure to common attacks." },
               ].map((row) => (
-                <Card key={row.risk} className="flex items-center justify-between border-border/60 bg-gradient-card p-4">
+                <Card key={row.risk} className="flex items-center justify-between border-border bg-card p-4">
                   <div>
-                    <div className={`font-semibold ${row.tone}`}>{row.risk} Risk</div>
+                    <div className={`font-semibold ${row.tone}`}>{row.risk} risk</div>
                     <div className="text-sm text-muted-foreground">{row.d}</div>
                   </div>
                   <span className="font-mono text-sm text-muted-foreground">{row.r}</span>
@@ -182,39 +177,26 @@ function Landing() {
         </div>
       </section>
 
-      {/* Linux desktop */}
-      <section className="border-t border-border/60 bg-card/40">
-        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-          <SectionHeader eyebrow="Linux" title="SentraX Desktop for Linux" subtitle="Install the full penetration-testing GUI natively on Athena OS and other Linux distributions — every tool unlocked, no payment." />
-          <div className="mt-8 flex justify-center">
-            <Button asChild size="lg" className="bg-gradient-primary text-primary-foreground shadow-glow">
-              <Link to="/download">Get the Linux app</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
       {/* Pricing */}
-      {!desktop && (
-      <section id="pricing" className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
-        <SectionHeader eyebrow="Pricing" title="Simple, transparent pricing" subtitle="Start free. Upgrade when you're ready to scale coverage." />
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
+      <section id="pricing" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+        <SectionHeader eyebrow="Pricing" title="Simple, transparent plans" subtitle="Start with one free assessment. Upgrade as your coverage grows." />
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
           {[
-            { name: "Free", price: "$0", features: ["1 website scan", "Full OWASP Top 10 report", "PDF export with graphics", "Basic recommendations"], cta: "Start free" },
-            { name: "Pro", price: "$10", featured: true, features: ["5 websites", "Unlimited re-scans", "AI recommendations", "Professional PDF reports", "Priority email support"], cta: "Get Pro" },
-            { name: "Business", price: "$50", features: ["Unlimited websites", "Continuous scanning", "SSO / SAML", "Team dashboards", "Priority support"], cta: "Go unlimited" },
+            { name: "Starter", price: "$0", features: ["1 website assessment", "Full OWASP Top 10 report", "PDF export", "Basic recommendations"], cta: "Start free" },
+            { name: "Professional", price: "$10", featured: true, features: ["5 websites", "Unlimited re-assessments", "AI recommendations", "Professional PDF reports", "Priority email support"], cta: "Choose Professional" },
+            { name: "Enterprise", price: "$50", features: ["Unlimited websites", "Continuous monitoring", "Team dashboards", "Compliance support", "Priority support"], cta: "Talk to us" },
           ].map((p) => (
-            <Card key={p.name} className={`relative border-border/60 bg-gradient-card p-6 ${p.featured ? "shadow-glow ring-1 ring-primary/50" : ""}`}>
-              {p.featured && <span className="absolute -top-2 right-4 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground">Popular</span>}
+            <Card key={p.name} className={`relative border-border bg-card p-6 ${p.featured ? "border-primary shadow-elegant" : ""}`}>
+              {p.featured && <span className="absolute -top-2.5 right-4 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground">Most popular</span>}
               <div className="font-semibold">{p.name}</div>
-              <div className="mt-2 text-3xl font-bold">{p.price}<span className="text-sm font-normal text-muted-foreground">/mo</span></div>
+              <div className="mt-2 text-3xl font-semibold">{p.price}<span className="text-sm font-normal text-muted-foreground">/month</span></div>
               <ul className="mt-5 space-y-2 text-sm">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-center gap-2 text-muted-foreground"><Check className="h-4 w-4 text-primary" />{f}</li>
                 ))}
               </ul>
               <Button asChild className="mt-6 w-full" variant={p.featured ? "default" : "outline"}>
-                {p.name === "Free"
+                {p.name === "Starter"
                   ? <Link to="/auth" search={{ mode: "register" }}>{p.cta}</Link>
                   : <Link to="/upgrade">{p.cta}</Link>}
               </Button>
@@ -222,23 +204,78 @@ function Landing() {
           ))}
         </div>
       </section>
-      )}
 
       {/* About */}
-      <section id="about" className="border-t border-border/60 bg-card/40">
-        <div className="mx-auto max-w-3xl px-4 py-24 text-center sm:px-6">
-          <SectionHeader eyebrow="About" title="Built for the defenders" subtitle="SentraX combines automated scanning, threat intelligence and AI reasoning to give lean security teams the visibility of a full SOC." />
-          <div className="mt-8">
-            <Button asChild size="lg" className="bg-gradient-primary text-primary-foreground shadow-glow">
-              <Link to="/auth" search={{ mode: "register" }}>Create your free account</Link>
-            </Button>
+      <section id="about" className="border-y border-border bg-secondary/50">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+          <div className="grid gap-12 lg:grid-cols-2">
+            <div>
+              <SectionHeader align="left" eyebrow="About us" title="A security company built for lean teams" subtitle="SentraX combines automated assessment technology with hands-on security expertise." />
+              <p className="mt-6 text-muted-foreground">
+                We work with small and mid-sized companies that depend on their website and online
+                systems but do not have a full security department. Our platform runs the technical
+                assessment; our analysts turn the results into decisions your business can act on.
+                Every client gets the same standard of reporting a large enterprise would expect.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                { icon: Building2, t: "Business first", d: "Findings framed around revenue, trust and continuity." },
+                { icon: ShieldCheck, t: "Standards based", d: "Aligned with OWASP, and supportive of ISO 27001 and SOC 2." },
+                { icon: Clock, t: "Fast turnaround", d: "Baseline results in minutes, full report the same day." },
+                { icon: Users, t: "Human support", d: "Real analysts available to walk your team through the report." },
+              ].map((v) => (
+                <Card key={v.t} className="border-border bg-card p-5">
+                  <v.icon className="h-5 w-5 text-primary" />
+                  <div className="mt-3 font-medium">{v.t}</div>
+                  <p className="mt-1 text-sm text-muted-foreground">{v.d}</p>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-border/60 py-10">
+      {/* Contact */}
+      <section id="contact" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+        <div className="grid gap-10 lg:grid-cols-2">
+          <div>
+            <SectionHeader align="left" eyebrow="Contact" title="Talk to our team" subtitle="Tell us about your systems and we will recommend the right level of assessment." />
+            <div className="mt-8 space-y-4 text-sm">
+              <p className="flex items-center gap-3"><Phone className="h-4 w-4 text-primary" /> +255 773 841 274</p>
+              <p className="flex items-center gap-3"><Mail className="h-4 w-4 text-primary" /> hello@sentrax.io</p>
+              <p className="flex items-center gap-3"><MapPin className="h-4 w-4 text-primary" /> Dar es Salaam, Tanzania</p>
+              <p className="flex items-center gap-3">
+                <Instagram className="h-4 w-4 text-primary" />
+                <a href="https://instagram.com/core.sec" target="_blank" rel="noreferrer" className="hover:text-primary">@core.sec</a>
+              </p>
+            </div>
+            <p className="mt-6 text-xs text-muted-foreground">
+              These contact details are placeholders except the phone number and Instagram — send me the
+              real email and office address and I will update them.
+            </p>
+          </div>
+          <Card className="border-border bg-card p-8">
+            <h3 className="text-xl font-semibold">Start your first assessment free</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Create an account and run a full security assessment of one website at no cost — report included.
+            </p>
+            <Button asChild size="lg" className="mt-6">
+              <Link to="/auth" search={{ mode: "register" }}>Create your free account</Link>
+            </Button>
+          </Card>
+        </div>
+      </section>
+
+      <footer className="border-t border-border bg-secondary/40 py-10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
           <Logo />
+          <nav className="flex gap-6 text-sm text-muted-foreground">
+            <a href="#services" className="hover:text-primary">Services</a>
+            <a href="#pricing" className="hover:text-primary">Pricing</a>
+            <Link to="/sponsors" className="hover:text-primary">Partners</Link>
+            <a href="#contact" className="hover:text-primary">Contact</a>
+          </nav>
           <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} SentraX. All rights reserved.</p>
         </div>
       </footer>
@@ -249,29 +286,16 @@ function Landing() {
 function SectionHeader({ eyebrow, title, subtitle, align = "center" }: { eyebrow: string; title: string; subtitle: string; align?: "center" | "left" }) {
   return (
     <div className={align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-2xl"}>
-      <div className="font-mono text-xs uppercase tracking-widest text-primary">{eyebrow}</div>
-      <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{title}</h2>
+      <div className="text-xs font-semibold uppercase tracking-widest text-primary">{eyebrow}</div>
+      <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h2>
       <p className="mt-3 text-muted-foreground">{subtitle}</p>
     </div>
   );
 }
 
-function MiniStat({ icon: Icon, label, value, tone }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; tone: "warning" | "success" | "info" | "primary" }) {
-  const map = { warning: "text-warning", success: "text-success", info: "text-info", primary: "text-primary" } as const;
-  return (
-    <div className="rounded-lg border border-border/60 bg-background/40 p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className={`h-4 w-4 ${map[tone]}`} />
-      </div>
-      <div className="mt-2 text-2xl font-bold">{value}</div>
-    </div>
-  );
-}
-
-function ScoreOrb({ big = false }: { big?: boolean }) {
-  const size = big ? 240 : 160;
-  const stroke = big ? 14 : 10;
+function ScoreOrb() {
+  const size = 220;
+  const stroke = 14;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const score = 85;
@@ -280,12 +304,12 @@ function ScoreOrb({ big = false }: { big?: boolean }) {
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} className="stroke-muted" fill="none" />
         <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} strokeLinecap="round"
-          className="stroke-primary drop-shadow-[0_0_10px_var(--color-primary)]" fill="none"
+          className="stroke-primary" fill="none"
           strokeDasharray={c} strokeDashoffset={c - (c * score) / 100} />
       </svg>
       <div className="absolute grid place-items-center">
-        <div className={big ? "text-5xl font-bold" : "text-3xl font-bold"}>{score}</div>
-        <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Security score</div>
+        <div className="text-5xl font-semibold">{score}</div>
+        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Security score</div>
       </div>
     </div>
   );

@@ -1,16 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PLAN_LIMITS, scansRemaining, type Plan } from "@/lib/plan";
-import { isDesktopRuntime } from "@/lib/platform";
 
 export function useCredits() {
   return useQuery({
     queryKey: ["credits"],
     queryFn: async () => {
-      // Linux desktop build: everything unlocked, no payment.
-      if (isDesktopRuntime()) {
-        return { plan: "business" as Plan, used: 0, limit: Infinity, remaining: Infinity };
-      }
+
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
       if (!user) return { plan: "free" as Plan, used: 0, limit: 1, remaining: 1 };
