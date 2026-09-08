@@ -7,8 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { ScanCreditsInline } from "@/components/scan-credits";
-import { PwaInstallButton } from "@/components/pwa-install";
-import { useIsDesktopApp } from "@/lib/platform";
+
 
 const items = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
