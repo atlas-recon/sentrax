@@ -22,8 +22,7 @@ export function AppShell({ children, title, actions }: { children: ReactNode; ti
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const desktop = useIsDesktopApp();
-  const navItems = desktop ? items : [...items, upgradeItem];
+  const navItems = [...items, upgradeItem];
 
   async function signOut() {
     await qc.cancelQueries();
@@ -79,7 +78,7 @@ export function AppShell({ children, title, actions }: { children: ReactNode; ti
             </div>
             <div className="flex items-center gap-2">
               <span className="hidden md:inline-flex"><ScanCreditsInline /></span>
-              <PwaInstallButton />
+              
               {actions}
             </div>
           </div>
