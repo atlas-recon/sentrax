@@ -10,7 +10,10 @@ export interface Finding {
   severity: Severity;
   description: string;
   recommendation: string;
-  category: "headers" | "ssl" | "tech" | "cookies" | "website" | "injection" | "xss" | "exposure" | "cors" | "redirect" | "content";
+  category:
+    | "headers" | "ssl" | "tech" | "cookies" | "website" | "injection" | "xss"
+    | "exposure" | "cors" | "redirect" | "content"
+    | "dns" | "email" | "api" | "cms" | "privacy" | "infra" | "auth";
   owasp?: string; // e.g. "A03:2021 Injection"
   evidence: string;
 }
@@ -480,6 +483,507 @@ async function checkOwaspProbes(rawUrl: string, url: URL, html: string): Promise
   return { findings, probes };
 }
 
+// ============================================================================
+// DEEP CHECKS — policy quality, API/CMS surface, infrastructure, privacy
+// ============================================================================
+
+/** Quality analysis of CSP / HSTS / Permissions-Policy values (not just presence). */
+function analyzePolicyQuality(h: Headers, finalUrl: string): Finding[] {
+  const out: Finding[] = [];
+  const csp = h.get("content-security-policy");
+  if (csp) {
+    const lower = csp.toLowerCase();
+    const weak: string[] = [];
+    if (lower.includes("'unsafe-inline'")) weak.push("'unsafe-inline' allows inline scripts/styles — defeats most XSS protection");
+    if (lower.includes("'unsafe-eval'")) weak.push("'unsafe-eval' permits eval()/new Function() on attacker-controlled strings");
+    if (/(script-src|default-src)[^;]*\*/.test(lower)) weak.push("wildcard (*) source in script-src/default-src");
+    if (/https?:(\s|;|$)/.test(lower)) weak.push("bare http:/https: scheme source allows any host");
+    if (!lower.includes("object-src")) weak.push("no object-src — legacy plugin injection is not blocked");
+    if (!lower.includes("frame-ancestors")) weak.push("no frame-ancestors — clickjacking not blocked by CSP");
+    if (!lower.includes("base-uri")) weak.push("no base-uri — <base> tag injection can hijack relative script URLs");
+    if (weak.length) {
+      out.push({
+        category: "headers", severity: weak.length >= 3 ? "high" : "medium",
+        owasp: "A05:2021 Security Misconfiguration",
+        title: `Weak Content-Security-Policy (${weak.length} issue${weak.length === 1 ? "" : "s"})`,
+        description: "A CSP is present but contains directives that substantially reduce or nullify its protection against cross-site scripting and injection.",
+        recommendation: "Remove 'unsafe-inline'/'unsafe-eval' (use nonces or hashes), replace wildcards with explicit origins, and add object-src 'none', base-uri 'self' and frame-ancestors 'none'.",
+        evidence: `content-security-policy: ${csp}\n\nIssues:\n${weak.map((w) => "  • " + w).join("\n")}`,
+      });
+    }
+  }
+
+  const hsts = h.get("strict-transport-security");
+  if (hsts) {
+    const maxAge = Number(/max-age=(\d+)/i.exec(hsts)?.[1] ?? 0);
+    const issues: string[] = [];
+    if (maxAge < 15552000) issues.push(`max-age=${maxAge} is below the recommended 15552000 (180 days)`);
+    if (!/includesubdomains/i.test(hsts)) issues.push("includeSubDomains missing — subdomains can still be downgraded to HTTP");
+    if (!/preload/i.test(hsts)) issues.push("not preload-eligible — the very first visit is unprotected");
+    if (issues.length) {
+      out.push({
+        category: "ssl", severity: maxAge < 86400 ? "medium" : "low",
+        owasp: "A02:2021 Cryptographic Failures",
+        title: "Weak HSTS configuration",
+        description: "HSTS is enabled but configured too loosely to fully prevent HTTPS-downgrade and cookie-hijacking attacks.",
+        recommendation: 'Use "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload" once all subdomains serve HTTPS.',
+        evidence: `strict-transport-security: ${hsts}\nSource: ${finalUrl}\n\nIssues:\n${issues.map((i) => "  • " + i).join("\n")}`,
+      });
+    }
+  }
+
+  const xfo = h.get("x-frame-options");
+  if (xfo && /allow-from/i.test(xfo)) {
+    out.push({
+      category: "headers", severity: "low", owasp: "A05:2021 Security Misconfiguration",
+      title: "Obsolete X-Frame-Options ALLOW-FROM directive",
+      description: "ALLOW-FROM is ignored by all modern browsers, so this page is effectively framable.",
+      recommendation: "Replace with CSP frame-ancestors, e.g. \"frame-ancestors 'self'\".",
+      evidence: `x-frame-options: ${xfo}`,
+    });
+  }
+
+  if (!h.get("cross-origin-opener-policy")) {
+    out.push({
+      category: "headers", severity: "low", owasp: "A05:2021 Security Misconfiguration",
+      title: "Missing Cross-Origin-Opener-Policy",
+      description: "Without COOP, a page you open (or that opens you) shares a browsing-context group, enabling cross-window scripting and Spectre-style side-channel attacks.",
+      recommendation: 'Set "Cross-Origin-Opener-Policy: same-origin" on HTML responses.',
+      evidence: `Response from: ${finalUrl}\ncross-origin-opener-policy: — not set`,
+    });
+  }
+
+  const cache = h.get("cache-control") || "";
+  if (h.get("set-cookie") && !/no-store|private/i.test(cache)) {
+    out.push({
+      category: "headers", severity: "medium", owasp: "A05:2021 Security Misconfiguration",
+      title: "Session response is cacheable by shared caches",
+      description: "The response sets cookies but does not forbid shared caching. A CDN or proxy can store and replay one user's personalised page to another user.",
+      recommendation: 'Send "Cache-Control: no-store" (or at minimum "private, no-cache") on any authenticated or cookie-setting response.',
+      evidence: `set-cookie: present\ncache-control: ${cache || "— not set"}\nSource: ${finalUrl}`,
+    });
+  }
+  return out;
+}
+
+/** Deeper cookie hygiene beyond Secure/HttpOnly/SameSite presence. */
+function analyzeCookieQuality(cookies: CookieInfo[]): Finding[] {
+  const out: Finding[] = [];
+  const noneNotSecure = cookies.filter((c) => c.sameSite?.toLowerCase() === "none" && !c.secure);
+  if (noneNotSecure.length) {
+    out.push({
+      category: "cookies", severity: "high", owasp: "A05:2021 Security Misconfiguration",
+      title: `${noneNotSecure.length} cookie(s) use SameSite=None without Secure`,
+      description: "Browsers reject SameSite=None cookies that are not Secure, so these cookies are dropped or sent cross-site in clear text.",
+      recommendation: "Always pair SameSite=None with the Secure attribute.",
+      evidence: noneNotSecure.map((c) => `${c.name}\n  raw: ${c.raw}`).join("\n\n"),
+    });
+  }
+  const sessionish = cookies.filter((c) => /sess|auth|token|jwt|sid|login/i.test(c.name));
+  const unprefixed = sessionish.filter((c) => !/^__(Host|Secure)-/.test(c.name));
+  if (unprefixed.length) {
+    out.push({
+      category: "cookies", severity: "low", owasp: "A01:2021 Broken Access Control",
+      title: `${unprefixed.length} session cookie(s) without __Host-/__Secure- prefix`,
+      description: "Cookie prefixes let the browser enforce that a session cookie was set over HTTPS from this exact host. Without them, a compromised subdomain can overwrite the session cookie (cookie tossing).",
+      recommendation: "Rename session cookies to __Host-<name> and set them with Secure; Path=/; and no Domain attribute.",
+      evidence: unprefixed.map((c) => `${c.name}\n  raw: ${c.raw}`).join("\n\n"),
+    });
+  }
+  const longLived = cookies.filter((c) => {
+    const m = /max-age=(\d+)/i.exec(c.raw);
+    return m && Number(m[1]) > 60 * 60 * 24 * 365;
+  });
+  if (longLived.length) {
+    out.push({
+      category: "cookies", severity: "low", owasp: "A07:2021 Identification & Auth Failures",
+      title: `${longLived.length} cookie(s) live longer than a year`,
+      description: "Very long cookie lifetimes extend the window in which a stolen cookie remains valid and raise GDPR/ePrivacy consent questions.",
+      recommendation: "Cap session cookies to hours, and persistent preference cookies to 6-13 months.",
+      evidence: longLived.map((c) => `${c.name}\n  raw: ${c.raw}`).join("\n\n"),
+    });
+  }
+  return out;
+}
+
+/** Known-vulnerable / outdated front-end libraries pulled from the HTML. */
+function analyzeLibraries(html: string): Finding[] {
+  if (!html) return [];
+  const out: Finding[] = [];
+  const rules: { name: string; re: RegExp; safeMajor: number; safeMinor: number; note: string }[] = [
+    { name: "jQuery", re: /jquery[-.](\d+)\.(\d+)(?:\.(\d+))?(?:\.min)?\.js/i, safeMajor: 3, safeMinor: 5, note: "jQuery < 3.5 is affected by XSS via htmlPrefilter (CVE-2020-11022/11023)." },
+    { name: "AngularJS", re: /angular[-.](1)\.(\d+)(?:\.(\d+))?(?:\.min)?\.js/i, safeMajor: 99, safeMinor: 0, note: "AngularJS 1.x reached end-of-life in 2022 and receives no security patches." },
+    { name: "Bootstrap", re: /bootstrap[-.](\d+)\.(\d+)(?:\.(\d+))?(?:\.min)?\.(?:js|css)/i, safeMajor: 4, safeMinor: 3, note: "Bootstrap < 4.3.1 has XSS issues in tooltip/popover data attributes." },
+    { name: "Lodash", re: /lodash[-.](\d+)\.(\d+)(?:\.(\d+))?(?:\.min)?\.js/i, safeMajor: 4, safeMinor: 17, note: "Lodash < 4.17.21 is vulnerable to prototype pollution / ReDoS." },
+    { name: "Moment.js", re: /moment[-.](\d+)\.(\d+)(?:\.(\d+))?(?:\.min)?\.js/i, safeMajor: 2, safeMinor: 29, note: "Moment.js < 2.29.4 has a path-traversal/ReDoS advisory and the project is deprecated." },
+  ];
+  for (const r of rules) {
+    const m = r.re.exec(html);
+    if (!m) continue;
+    const major = Number(m[1]); const minor = Number(m[2]);
+    const outdated = major < r.safeMajor || (major === r.safeMajor && minor < r.safeMinor);
+    if (outdated) {
+      out.push({
+        category: "tech", severity: "medium", owasp: "A06:2021 Vulnerable & Outdated Components",
+        title: `Outdated ${r.name} ${major}.${minor}${m[3] ? "." + m[3] : ""} in use`,
+        description: `${r.note} Attackers scan for library versions and reuse public exploits with no effort.`,
+        recommendation: `Upgrade ${r.name} to a current release and add it to a dependency-monitoring workflow (Dependabot, Renovate, npm audit).`,
+        evidence: `Matched asset reference in HTML:\n  ${m[0]}`,
+      });
+    }
+  }
+  return out;
+}
+
+/** Login/auth form hygiene and third-party tracking exposure. */
+function analyzeFormsAndPrivacy(html: string, url: URL): Finding[] {
+  if (!html) return [];
+  const out: Finding[] = [];
+  const forms = Array.from(html.matchAll(/<form[\s\S]{0,2000}?<\/form>/gi)).map((m) => m[0]);
+  const pwForms = forms.filter((f) => /type=["']password["']/i.test(f));
+
+  const getForms = pwForms.filter((f) => /method=["']get["']/i.test(f));
+  if (getForms.length) {
+    out.push({
+      category: "auth", severity: "high", owasp: "A07:2021 Identification & Auth Failures",
+      title: "Password form submits via GET",
+      description: "Credentials submitted with GET end up in the URL, browser history, proxy logs and Referer headers.",
+      recommendation: 'Use method="POST" over HTTPS for every credential form.',
+      evidence: getForms[0].slice(0, 400),
+    });
+  }
+  const httpAction = pwForms.filter((f) => /action=["']http:\/\//i.test(f));
+  if (httpAction.length) {
+    out.push({
+      category: "auth", severity: "critical", owasp: "A02:2021 Cryptographic Failures",
+      title: "Password form posts to an insecure http:// endpoint",
+      description: "Credentials are transmitted unencrypted and can be captured by anyone on the network path.",
+      recommendation: "Point the form action at an https:// URL and force TLS server-side.",
+      evidence: httpAction[0].slice(0, 400),
+    });
+  }
+  if (pwForms.length && !/csrf|authenticity_token|_token|xsrf/i.test(pwForms.join(" "))) {
+    out.push({
+      category: "auth", severity: "medium", owasp: "A01:2021 Broken Access Control",
+      title: "Login form has no visible anti-CSRF token",
+      description: "No hidden CSRF/anti-forgery token was found in the credential form. Where the framework does not add one automatically, this enables cross-site request forgery on authentication actions.",
+      recommendation: "Emit a per-session anti-CSRF token in every state-changing form and validate it server-side; also set SameSite=Lax on session cookies.",
+      evidence: pwForms[0].slice(0, 400),
+    });
+  }
+
+  const trackers = [
+    { name: "Google Analytics / GTM", re: /googletagmanager\.com|google-analytics\.com/i },
+    { name: "Meta (Facebook) Pixel", re: /connect\.facebook\.net/i },
+    { name: "TikTok Pixel", re: /analytics\.tiktok\.com/i },
+    { name: "Hotjar", re: /static\.hotjar\.com/i },
+    { name: "LinkedIn Insight", re: /snap\.licdn\.com/i },
+  ].filter((t) => t.re.test(html));
+  if (trackers.length) {
+    out.push({
+      category: "privacy", severity: "info", owasp: "A09:2021 Security Logging & Monitoring Failures",
+      title: `${trackers.length} third-party tracker(s) loaded on the landing page`,
+      description: `Detected: ${trackers.map((t) => t.name).join(", ")}. These scripts run with full page privileges and set cookies; under GDPR/ePrivacy they normally require prior consent.`,
+      recommendation: "Load trackers only after explicit consent, restrict them in your CSP, and document them in your privacy notice and data-processing records.",
+      evidence: trackers.map((t) => `  • ${t.name}`).join("\n"),
+    });
+  }
+
+  const externalHosts = Array.from(new Set(
+    Array.from(html.matchAll(/<script[^>]+src=["'](https?:\/\/[^"']+)["']/gi))
+      .map((m) => { try { return new URL(m[1]).hostname; } catch { return ""; } })
+      .filter((hst) => hst && hst !== url.hostname),
+  ));
+  if (externalHosts.length >= 5) {
+    out.push({
+      category: "content", severity: "low", owasp: "A08:2021 Software & Data Integrity Failures",
+      title: `Large third-party script surface (${externalHosts.length} external origins)`,
+      description: "Every external origin that serves JavaScript can read and modify the whole page. A single compromised vendor becomes a compromise of your site (Magecart-style supply-chain attack).",
+      recommendation: "Reduce vendors, self-host critical scripts, add Subresource Integrity, and lock script-src in your CSP to an allow-list.",
+      evidence: externalHosts.slice(0, 15).map((hst) => "  • " + hst).join("\n"),
+    });
+  }
+  return out;
+}
+
+/** API surface, CMS surface, infrastructure and error-handling probes. */
+async function checkDeepSurface(url: URL, html: string, tech: TechHit[]): Promise<{ findings: Finding[]; probes: { path: string; status: number; note?: string }[] }> {
+  const findings: Finding[] = [];
+  const probes: { path: string; status: number; note?: string }[] = [];
+  const base = `${url.protocol}//${url.host}`;
+  const note = (p: string, s: number, n?: string) => probes.push({ path: p, status: s, note: n });
+
+  // ---- API documentation & management endpoints ----
+  const apiPaths = [
+    "/swagger.json", "/openapi.json", "/v2/api-docs", "/swagger-ui.html",
+    "/actuator/env", "/actuator/health", "/api-docs", "/.well-known/security.txt",
+  ];
+  for (const p of apiPaths) {
+    if (p === "/.well-known/security.txt") continue;
+    const r = await safeFetch(base + p);
+    if (!r) continue;
+    note(p, r.status);
+    if (r.status !== 200) { await r.body?.cancel(); continue; }
+    const body = (await r.text().catch(() => "")).slice(0, 400);
+    const hit = /"(swagger|openapi)"\s*:/i.test(body) || /swagger-ui/i.test(body) || /"activeProfiles"|"propertySources"/i.test(body);
+    if (hit) {
+      findings.push({
+        category: "api", severity: p.startsWith("/actuator") ? "high" : "medium",
+        owasp: "A05:2021 Security Misconfiguration",
+        title: `Internal API surface exposed at ${p}`,
+        description: p.startsWith("/actuator")
+          ? "A Spring Boot Actuator endpoint is publicly readable. These endpoints leak environment variables, config, and sometimes credentials, and some allow shutdown or heap dumps."
+          : "Machine-readable API documentation is public. It hands attackers a complete map of every endpoint, parameter and auth scheme to target.",
+        recommendation: p.startsWith("/actuator")
+          ? "Restrict actuator endpoints to an internal network and set management.endpoints.web.exposure.include=health."
+          : "Require authentication for API docs, or publish them only on an internal/partner portal.",
+        evidence: `GET ${base + p}\nStatus: 200\nBody snippet:\n${body}`,
+      });
+    }
+  }
+
+  // ---- GraphQL introspection ----
+  const gqlPaths = ["/graphql", "/api/graphql"];
+  for (const p of gqlPaths) {
+    const r = await safeFetch(base + p, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "SentraX-Scanner/2.0" },
+      body: JSON.stringify({ query: "{__schema{queryType{name}}}" }),
+    });
+    if (!r) continue;
+    note(p, r.status, "graphql introspection");
+    const body = (await r.text().catch(() => "")).slice(0, 400);
+    if (r.status === 200 && /__schema|queryType/i.test(body)) {
+      findings.push({
+        category: "api", severity: "high", owasp: "A05:2021 Security Misconfiguration",
+        title: `GraphQL introspection enabled at ${p}`,
+        description: "The GraphQL schema can be downloaded by anyone, revealing every type, field, mutation and hidden admin operation — the standard first step in a GraphQL attack.",
+        recommendation: "Disable introspection in production, enforce query depth/complexity limits, and require authentication on the endpoint.",
+        evidence: `POST ${base + p}\nQuery: {__schema{queryType{name}}}\nStatus: 200\nResponse:\n${body}`,
+      });
+      break;
+    }
+  }
+
+  // ---- WordPress-specific surface ----
+  const isWp = tech.some((t) => /wordpress/i.test(t.name)) || /wp-content|wp-includes/i.test(html);
+  if (isWp) {
+    const users = await safeFetch(base + "/wp-json/wp/v2/users");
+    if (users) {
+      note("/wp-json/wp/v2/users", users.status);
+      const body = (await users.text().catch(() => "")).slice(0, 400);
+      if (users.status === 200 && /"slug"\s*:/.test(body)) {
+        findings.push({
+          category: "cms", severity: "medium", owasp: "A01:2021 Broken Access Control",
+          title: "WordPress user enumeration via REST API",
+          description: "The /wp-json/wp/v2/users endpoint lists valid usernames. Attackers use these directly in password-spraying and phishing campaigns.",
+          recommendation: "Restrict the users endpoint (security plugin or a rest_endpoints filter), and enforce MFA plus login rate-limiting.",
+          evidence: `GET ${base}/wp-json/wp/v2/users\nStatus: 200\n${body}`,
+        });
+      }
+    }
+    const xmlrpc = await safeFetch(base + "/xmlrpc.php", { method: "POST", body: "<methodCall><methodName>system.listMethods</methodName></methodCall>" });
+    if (xmlrpc) {
+      note("/xmlrpc.php", xmlrpc.status);
+      const body = (await xmlrpc.text().catch(() => "")).slice(0, 300);
+      if (xmlrpc.status === 200 && /methodResponse|params/i.test(body)) {
+        findings.push({
+          category: "cms", severity: "medium", owasp: "A07:2021 Identification & Auth Failures",
+          title: "WordPress XML-RPC endpoint is enabled",
+          description: "xmlrpc.php allows hundreds of login attempts in a single request (system.multicall) and can be abused for pingback-based DDoS reflection.",
+          recommendation: "Block /xmlrpc.php at the web server or CDN unless a legacy integration requires it.",
+          evidence: `POST ${base}/xmlrpc.php\nStatus: 200\n${body}`,
+        });
+      }
+    }
+    const readme = await safeFetch(base + "/readme.html");
+    if (readme && readme.status === 200) {
+      const body = (await readme.text().catch(() => "")).slice(0, 500);
+      const ver = /version\s+([\d.]+)/i.exec(body)?.[1];
+      note("/readme.html", 200, ver);
+      if (ver) findings.push({
+        category: "cms", severity: "low", owasp: "A06:2021 Vulnerable & Outdated Components",
+        title: `WordPress version disclosed (${ver})`,
+        description: "The default readme.html reveals the exact core version, letting attackers match it against public exploit databases.",
+        recommendation: "Delete readme.html and license.txt after deployment and remove the generator meta tag.",
+        evidence: `GET ${base}/readme.html\nDetected version: ${ver}`,
+      });
+    }
+  }
+
+  // ---- Verbose error handling ----
+  const errProbe = await safeFetch(`${base}/sentrax-nonexistent-${Date.now().toString(36)}`);
+  if (errProbe) {
+    note("/<random-404>", errProbe.status);
+    const body = (await errProbe.text().catch(() => "")).slice(0, 4000);
+    const stack = /stack trace|at [\w.$]+\([^)]*\.(java|php|py|rb|js):\d+|Traceback \(most recent call last\)|Exception in thread|Whitelabel Error Page|Fatal error:|Warning: include\(|\.cfm|System\.Web\.HttpException/i.exec(body);
+    if (stack) {
+      findings.push({
+        category: "exposure", severity: "medium", owasp: "A05:2021 Security Misconfiguration",
+        title: "Verbose error page leaks server internals",
+        description: "An unhandled request returned a debug/stack-trace page. These disclose file paths, framework versions and sometimes SQL or credentials, accelerating exploitation.",
+        recommendation: "Disable debug mode in production and return a generic error page while logging details server-side.",
+        evidence: `GET ${base}/sentrax-nonexistent-…\nStatus: ${errProbe.status}\nMatched: ${stack[0]}\n\n${body.slice(0, 500)}`,
+      });
+    }
+  }
+
+  // ---- Dangerous HTTP methods (OPTIONS) ----
+  const opt = await safeFetch(base + "/", { method: "OPTIONS" });
+  if (opt) {
+    const allow = opt.headers.get("allow") || opt.headers.get("access-control-allow-methods") || "";
+    note("OPTIONS /", opt.status, allow);
+    const risky = ["PUT", "DELETE", "PATCH", "CONNECT"].filter((m) => new RegExp(`\\b${m}\\b`, "i").test(allow));
+    if (risky.length) {
+      findings.push({
+        category: "infra", severity: "medium", owasp: "A05:2021 Security Misconfiguration",
+        title: `Write HTTP methods advertised: ${risky.join(", ")}`,
+        description: "The server advertises state-changing HTTP methods on the document root. If access control is weak, attackers may upload or delete content directly.",
+        recommendation: "Restrict allowed methods to GET/HEAD/POST at the web server or WAF, and verify authorization on any method you keep.",
+        evidence: `OPTIONS ${base}/\nStatus: ${opt.status}\nAllow: ${allow}`,
+      });
+    }
+  }
+
+  // ---- Cache-poisoning / host-header reflection ----
+  const poison = await safeFetch(base + "/", { headers: { "user-agent": "SentraX-Scanner/2.0", "x-forwarded-host": "sentrax-canary.example" } });
+  if (poison) {
+    const body = (await poison.text().catch(() => "")).slice(0, 200_000);
+    const loc = poison.headers.get("location") || "";
+    if (body.includes("sentrax-canary.example") || loc.includes("sentrax-canary.example")) {
+      findings.push({
+        category: "infra", severity: "high", owasp: "A05:2021 Security Misconfiguration",
+        title: "X-Forwarded-Host is reflected into the response",
+        description: "The application builds absolute URLs from an attacker-controllable header. Combined with a shared cache this yields web-cache poisoning, and on password-reset flows it yields account takeover via poisoned reset links.",
+        recommendation: "Ignore X-Forwarded-Host / Host from untrusted sources, use a configured canonical base URL, and validate the Host against an allow-list at the edge.",
+        evidence: `GET ${base}/  with  X-Forwarded-Host: sentrax-canary.example\nReflected in: ${loc.includes("sentrax-canary.example") ? "Location header" : "response body"}\nLocation: ${loc || "(none)"}`,
+      });
+    }
+  }
+
+  // ---- robots.txt intelligence ----
+  const robots = await safeFetch(base + "/robots.txt");
+  if (robots && robots.status === 200) {
+    const body = (await robots.text().catch(() => "")).slice(0, 5000);
+    note("/robots.txt", 200);
+    const juicy = body.split("\n")
+      .map((l) => l.trim())
+      .filter((l) => /^disallow:/i.test(l) && /admin|backup|private|internal|config|db|sql|staging|test|secret|\.git|api/i.test(l));
+    if (juicy.length) {
+      findings.push({
+        category: "exposure", severity: "low", owasp: "A01:2021 Broken Access Control",
+        title: `robots.txt advertises ${juicy.length} sensitive path(s)`,
+        description: "Disallow rules are a public list of the paths you consider sensitive. Attackers read robots.txt first precisely to find admin and backup locations.",
+        recommendation: "Do not name sensitive paths in robots.txt; protect them with authentication and use noindex headers instead.",
+        evidence: juicy.slice(0, 12).map((l) => "  " + l).join("\n"),
+      });
+    }
+  }
+
+  return { findings, probes };
+}
+
+/** Additional DNS / mail-authentication and attack-surface intelligence. */
+async function checkDnsDeep(host: string): Promise<Finding[]> {
+  const out: Finding[] = [];
+  const apex = host.split(".").slice(-2).join(".");
+  const [mx, mtaSts, bimi, dkimDefault, spfTxt] = await Promise.all([
+    dohQuery(apex, "MX"),
+    dohQuery(`_mta-sts.${apex}`, "TXT"),
+    dohQuery(`default._bimi.${apex}`, "TXT"),
+    dohQuery(`default._domainkey.${apex}`, "TXT"),
+    dohQuery(apex, "TXT"),
+  ]);
+
+  if (mx.length) {
+    if (!mtaSts.some((r) => /v=STSv1/i.test(r))) {
+      out.push({
+        category: "email", severity: "low", owasp: "A02:2021 Cryptographic Failures",
+        title: "No MTA-STS policy for inbound mail",
+        description: "Without MTA-STS, a network attacker can strip TLS from mail delivered to your domain and read or alter messages in transit.",
+        recommendation: `Publish "_mta-sts.${apex} TXT v=STSv1; id=..." plus a policy file at https://mta-sts.${apex}/.well-known/mta-sts.txt, and add TLS-RPT reporting.`,
+        evidence: `TXT _mta-sts.${apex}: ${mtaSts.join(" | ") || "(none)"}\nMX: ${mx.join(", ")}`,
+      });
+    }
+    if (!dkimDefault.some((r) => /v=DKIM1/i.test(r))) {
+      out.push({
+        category: "email", severity: "low", owasp: "A07:2021 Identification & Auth Failures",
+        title: "No DKIM key at the default selector",
+        description: "No DKIM record was found at default._domainkey. If your mail is not DKIM-signed, DMARC cannot pass on forwarded mail and your messages are easier to spoof and more likely to land in spam.",
+        recommendation: "Enable DKIM signing at your mail provider and publish the selector's public key in DNS (note: a custom selector may already be in use).",
+        evidence: `TXT default._domainkey.${apex}: ${dkimDefault.join(" | ") || "(none)"}`,
+      });
+    }
+    if (bimi.length === 0) {
+      out.push({
+        category: "email", severity: "info",
+        title: "No BIMI record (brand indicator) published",
+        description: "BIMI displays your verified logo next to authenticated mail in major inboxes. It requires DMARC at enforcement and improves both trust and phishing resistance for your customers.",
+        recommendation: "Once DMARC is at p=quarantine or p=reject, publish a BIMI record with an SVG Tiny PS logo (and a VMC for Gmail/Apple).",
+        evidence: `TXT default._bimi.${apex}: (none)`,
+      });
+    }
+  }
+
+  const spf = spfTxt.find((r) => /v=spf1/i.test(r));
+  if (spf) {
+    const lookups = (spf.match(/\b(include|a|mx|ptr|exists|redirect)[:=]/gi) || []).length;
+    if (lookups > 10) {
+      out.push({
+        category: "email", severity: "medium", owasp: "A07:2021 Identification & Auth Failures",
+        title: `SPF record exceeds the 10 DNS-lookup limit (${lookups})`,
+        description: "SPF evaluation fails with a permerror above 10 lookups, so receivers ignore the policy entirely and your legitimate mail can be spoofed or rejected.",
+        recommendation: "Flatten or consolidate include: mechanisms, or use an SPF-macro/flattening service to stay under 10 lookups.",
+        evidence: `SPF: ${spf}\nMechanism lookups counted: ${lookups}`,
+      });
+    }
+    if (/\bptr[:\s]/i.test(spf)) {
+      out.push({
+        category: "email", severity: "low",
+        title: "SPF uses the deprecated ptr mechanism",
+        description: "The ptr mechanism is deprecated by RFC 7208, is slow, and many receivers ignore or fail it.",
+        recommendation: "Remove ptr and list sending hosts with ip4/ip6/include mechanisms.",
+        evidence: `SPF: ${spf}`,
+      });
+    }
+  }
+
+  // Certificate-transparency attack surface
+  try {
+    const r = await fetch(`https://crt.sh/?q=%25.${encodeURIComponent(apex)}&output=json`, {
+      headers: { accept: "application/json", "user-agent": "SentraX-Scanner/2.0" },
+      signal: AbortSignal.timeout(9000),
+    });
+    if (r.ok) {
+      const rows = await r.json() as { name_value?: string }[];
+      const names = new Set<string>();
+      for (const row of rows.slice(0, 3000)) {
+        for (const n of (row.name_value ?? "").split("\n")) {
+          const clean = n.trim().toLowerCase();
+          if (clean && !clean.startsWith("*.") && clean.endsWith(apex)) names.add(clean);
+        }
+      }
+      const risky = Array.from(names).filter((n) => /dev|test|staging|stage|uat|admin|internal|vpn|beta|old|backup|jenkins|git|mail|api/i.test(n));
+      if (names.size > 0) {
+        out.push({
+          category: "dns", severity: risky.length ? "medium" : "info",
+          owasp: "A05:2021 Security Misconfiguration",
+          title: `${names.size} subdomain(s) discovered in certificate transparency${risky.length ? ` — ${risky.length} look non-production` : ""}`,
+          description: risky.length
+            ? "Certificate transparency logs reveal hostnames such as staging, dev, admin or VPN endpoints. Non-production hosts typically have weaker controls and are a common initial foothold."
+            : "Certificate transparency logs reveal the public hostname inventory for this domain. This is your attack surface as an attacker enumerates it.",
+          recommendation: "Inventory every hostname, take unused ones out of DNS, put non-production environments behind SSO/VPN or IP allow-listing, and monitor CT logs for unexpected certificates.",
+          evidence: `crt.sh query: %.${apex}\nTotal unique hostnames: ${names.size}\n` +
+            (risky.length ? `Non-production / sensitive candidates:\n${risky.slice(0, 25).map((n) => "  • " + n).join("\n")}\n` : "") +
+            `Sample:\n${Array.from(names).slice(0, 20).map((n) => "  • " + n).join("\n")}`,
+        });
+      }
+    }
+  } catch { /* CT lookup is best-effort */ }
+
+  return out;
+}
+
 async function runRealScan(rawUrl: string): Promise<ScanResult> {
   const findings: Finding[] = [];
   const steps: StepResult[] = [];
@@ -638,15 +1142,21 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
   const tech = detectTech(h, html);
   steps.push({ key: "tech", ok: true, detail: tech.length ? `Detected ${tech.length} technologies` : "No tech fingerprint found" });
 
-  // Step 5: OWASP active probes + DNS/email
+  // Step 5: OWASP active probes + DNS/email + deep surface analysis
   let probes: { path: string; status: number; note?: string }[] = [];
+  findings.push(...analyzePolicyQuality(h, finalUrl));
+  findings.push(...analyzeCookieQuality(cookies));
+  findings.push(...analyzeLibraries(html));
+  findings.push(...analyzeFormsAndPrivacy(html, url));
   try {
-    const [owasp, dnsFindings] = await Promise.all([
+    const [owasp, dnsFindings, deepDns, deep] = await Promise.all([
       checkOwaspProbes(rawUrl, url, html),
       checkDnsAndEmail(url.hostname),
+      checkDnsDeep(url.hostname),
+      checkDeepSurface(url, html, tech),
     ]);
-    findings.push(...owasp.findings, ...dnsFindings);
-    probes = owasp.probes;
+    findings.push(...owasp.findings, ...dnsFindings, ...deepDns, ...deep.findings);
+    probes = [...owasp.probes, ...deep.probes];
   } catch { /* best-effort */ }
 
   const penalty = findings.reduce((a, f) => a + SEVERITY_WEIGHT[f.severity], 0);
