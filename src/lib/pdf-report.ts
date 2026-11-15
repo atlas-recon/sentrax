@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import logoAsset from "@/assets/sentrax-logo.png.asset.json";
+import logoAsset from "@/assets/shahin-mark.png";
 
 export type PdfSeverity = "critical" | "high" | "medium" | "low" | "info";
 export interface PdfFinding {
@@ -56,7 +56,7 @@ function drawHeader(doc: jsPDF, logo: string | null, pageNum: number, totalPages
   if (logo) doc.addImage(logo, "PNG", 12, 4, 14, 14);
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold").setFontSize(13);
-  doc.text("SentraX", 30, 13);
+  doc.text("Shahin Security", 30, 13);
   doc.setFont("helvetica", "normal").setFontSize(8);
   doc.setTextColor(148, 197, 255);
   doc.text("Security Assessment Report", 30, 18);
@@ -71,8 +71,8 @@ function drawFooter(doc: jsPDF) {
   doc.setDrawColor(220, 220, 220);
   doc.line(12, h - 12, w - 12, h - 12);
   doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...BRAND.sub);
-  doc.text("Confidential — SentraX Security Report", 12, h - 6);
-  doc.text("sentrax.app", w - 12, h - 6, { align: "right" });
+  doc.text("Confidential — Shahin Security Security Report", 12, h - 6);
+  doc.text("shahinsecurity.co.tz", w - 12, h - 6, { align: "right" });
 }
 
 function drawScoreDial(doc: jsPDF, x: number, y: number, score: number, risk: string) {
@@ -144,7 +144,7 @@ function drawRiskGauge(doc: jsPDF, x: number, y: number, w: number, score: numbe
 
 export async function generateReportPdf(input: PdfReportInput): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const logo = await toDataURL(logoAsset.url);
+  const logo = await toDataURL(logoAsset);
   const pageW = doc.internal.pageSize.getWidth();
   const marginX = 14;
   const contentW = pageW - marginX * 2;
@@ -165,7 +165,7 @@ export async function generateReportPdf(input: PdfReportInput): Promise<Blob> {
   doc.text(input.website, pageW / 2, 170, { align: "center" });
   doc.setFontSize(10).setTextColor(200, 200, 200);
   doc.text(`Generated: ${input.generatedAt}`, pageW / 2, 240, { align: "center" });
-  doc.text("Prepared by SentraX  •  Secure. Scan. Protect.", pageW / 2, 250, { align: "center" });
+  doc.text("Prepared by Shahin Security  •  Secure. Scan. Protect.", pageW / 2, 250, { align: "center" });
 
   // === EXECUTIVE SUMMARY ===
   doc.addPage();

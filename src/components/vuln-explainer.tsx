@@ -21,7 +21,7 @@ export function VulnExplainer({ findingTitles }: { findingTitles: string[] }) {
         </span>
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        Plain-English breakdown of every issue class SentraX checks — what it is, how attackers exploit it, and how to fix it.
+        Plain-English breakdown of every issue class Shahin Security checks — what it is, how attackers exploit it, and how to fix it.
       </p>
       <div className="space-y-2">
         {docs.map(({ doc, count }) => (

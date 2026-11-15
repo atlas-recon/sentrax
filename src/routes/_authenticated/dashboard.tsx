@@ -11,7 +11,7 @@ import { ScanCreditsCard } from "@/components/scan-credits";
 import { VulnExplainer } from "@/components/vuln-explainer";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — SentraX" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — Shahin Security" }] }),
   component: Dashboard,
 });
 

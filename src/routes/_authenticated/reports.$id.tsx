@@ -58,7 +58,7 @@ const SECURITY_HEADER_KEYS = [
 ];
 
 export const Route = createFileRoute("/_authenticated/reports/$id")({
-  head: () => ({ meta: [{ title: "Report — SentraX" }] }),
+  head: () => ({ meta: [{ title: "Report — Shahin Security" }] }),
   component: ReportDetail,
 });
 
@@ -119,7 +119,7 @@ function ReportDetail() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `sentrax-report-${(a.companies?.company_name ?? "site").replace(/\W+/g, "-").toLowerCase()}-${a.id.slice(0, 8)}.pdf`;
+      link.download = `shahin-security-report-${(a.companies?.company_name ?? "site").replace(/\W+/g, "-").toLowerCase()}-${a.id.slice(0, 8)}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
       toast.success("PDF downloaded");
@@ -159,7 +159,7 @@ function ReportDetail() {
               </div>
             </div>
             <p className="mt-6 text-sm text-muted-foreground">
-              SentraX identified {findings.length} finding{findings.length === 1 ? "" : "s"} across your public attack surface. Overall posture is rated <strong className="text-foreground">{a.risk_level}</strong>. Prioritize the high-severity items below within the next 30 days to materially reduce risk.
+              Shahin Security identified {findings.length} finding{findings.length === 1 ? "" : "s"} across your public attack surface. Overall posture is rated <strong className="text-foreground">{a.risk_level}</strong>. Prioritize the high-severity items below within the next 30 days to materially reduce risk.
             </p>
 
             {/* Risk graphics */}

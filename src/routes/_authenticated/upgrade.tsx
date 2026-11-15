@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Check, Copy, Phone, Smartphone, Clock, ShieldCheck, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/upgrade")({
-  head: () => ({ meta: [{ title: "Upgrade — SentraX" }] }),
+  head: () => ({ meta: [{ title: "Upgrade — Shahin Security" }] }),
   component: UpgradePage,
 });
 

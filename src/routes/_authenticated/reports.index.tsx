@@ -8,7 +8,7 @@ import { RiskPill } from "@/components/severity-badge";
 import { FileText, Plus } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/reports/")({
-  head: () => ({ meta: [{ title: "Reports — SentraX" }] }),
+  head: () => ({ meta: [{ title: "Reports — Shahin Security" }] }),
   component: ReportsList,
 });
 

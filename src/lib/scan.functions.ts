@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { checkActualVulnerabilities } from "./vuln-checks";
+import { PLAN_LIMITS, usagePeriodStart, type Plan } from "./plan";
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type RiskLevel = "Low" | "Medium" | "High";
@@ -145,7 +147,7 @@ async function safeFetch(url: string, opts: RequestInit = {}): Promise<Response 
   try {
     return await fetch(url, {
       redirect: "manual",
-      headers: { "user-agent": "SentraX-Scanner/2.0" },
+      headers: { "user-agent": "ShahinSecurity-Scanner/2.0" },
       signal: AbortSignal.timeout(8000),
       ...opts,
     });
@@ -373,7 +375,7 @@ async function checkOwaspProbes(rawUrl: string, url: URL, html: string): Promise
 
   // ---- 6. CORS misconfiguration (A05) ----
   const corsResp = await safeFetch(rawUrl, {
-    headers: { origin: "https://evil.example.com", "user-agent": "SentraX-Scanner/2.0" },
+    headers: { origin: "https://evil.example.com", "user-agent": "ShahinSecurity-Scanner/2.0" },
   });
   if (corsResp) {
     const acao = corsResp.headers.get("access-control-allow-origin");
@@ -747,7 +749,7 @@ async function checkDeepSurface(url: URL, html: string, tech: TechHit[]): Promis
   for (const p of gqlPaths) {
     const r = await safeFetch(base + p, {
       method: "POST",
-      headers: { "content-type": "application/json", "user-agent": "SentraX-Scanner/2.0" },
+      headers: { "content-type": "application/json", "user-agent": "ShahinSecurity-Scanner/2.0" },
       body: JSON.stringify({ query: "{__schema{queryType{name}}}" }),
     });
     if (!r) continue;
@@ -812,7 +814,7 @@ async function checkDeepSurface(url: URL, html: string, tech: TechHit[]): Promis
   }
 
   // ---- Verbose error handling ----
-  const errProbe = await safeFetch(`${base}/sentrax-nonexistent-${Date.now().toString(36)}`);
+  const errProbe = await safeFetch(`${base}/shahin-nonexistent-${Date.now().toString(36)}`);
   if (errProbe) {
     note("/<random-404>", errProbe.status);
     const body = (await errProbe.text().catch(() => "")).slice(0, 4000);
@@ -823,7 +825,7 @@ async function checkDeepSurface(url: URL, html: string, tech: TechHit[]): Promis
         title: "Verbose error page leaks server internals",
         description: "An unhandled request returned a debug/stack-trace page. These disclose file paths, framework versions and sometimes SQL or credentials, accelerating exploitation.",
         recommendation: "Disable debug mode in production and return a generic error page while logging details server-side.",
-        evidence: `GET ${base}/sentrax-nonexistent-…\nStatus: ${errProbe.status}\nMatched: ${stack[0]}\n\n${body.slice(0, 500)}`,
+        evidence: `GET ${base}/shahin-nonexistent-…\nStatus: ${errProbe.status}\nMatched: ${stack[0]}\n\n${body.slice(0, 500)}`,
       });
     }
   }
@@ -846,17 +848,17 @@ async function checkDeepSurface(url: URL, html: string, tech: TechHit[]): Promis
   }
 
   // ---- Cache-poisoning / host-header reflection ----
-  const poison = await safeFetch(base + "/", { headers: { "user-agent": "SentraX-Scanner/2.0", "x-forwarded-host": "sentrax-canary.example" } });
+  const poison = await safeFetch(base + "/", { headers: { "user-agent": "ShahinSecurity-Scanner/2.0", "x-forwarded-host": "shahin-canary.example" } });
   if (poison) {
     const body = (await poison.text().catch(() => "")).slice(0, 200_000);
     const loc = poison.headers.get("location") || "";
-    if (body.includes("sentrax-canary.example") || loc.includes("sentrax-canary.example")) {
+    if (body.includes("shahin-canary.example") || loc.includes("shahin-canary.example")) {
       findings.push({
         category: "infra", severity: "high", owasp: "A05:2021 Security Misconfiguration",
         title: "X-Forwarded-Host is reflected into the response",
         description: "The application builds absolute URLs from an attacker-controllable header. Combined with a shared cache this yields web-cache poisoning, and on password-reset flows it yields account takeover via poisoned reset links.",
         recommendation: "Ignore X-Forwarded-Host / Host from untrusted sources, use a configured canonical base URL, and validate the Host against an allow-list at the edge.",
-        evidence: `GET ${base}/  with  X-Forwarded-Host: sentrax-canary.example\nReflected in: ${loc.includes("sentrax-canary.example") ? "Location header" : "response body"}\nLocation: ${loc || "(none)"}`,
+        evidence: `GET ${base}/  with  X-Forwarded-Host: shahin-canary.example\nReflected in: ${loc.includes("shahin-canary.example") ? "Location header" : "response body"}\nLocation: ${loc || "(none)"}`,
       });
     }
   }
@@ -951,7 +953,7 @@ async function checkDnsDeep(host: string): Promise<Finding[]> {
   // Certificate-transparency attack surface
   try {
     const r = await fetch(`https://crt.sh/?q=%25.${encodeURIComponent(apex)}&output=json`, {
-      headers: { accept: "application/json", "user-agent": "SentraX-Scanner/2.0" },
+      headers: { accept: "application/json", "user-agent": "ShahinSecurity-Scanner/2.0" },
       signal: AbortSignal.timeout(9000),
     });
     if (r.ok) {
@@ -998,7 +1000,7 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
       const httpUrl = new URL(rawUrl); httpUrl.protocol = "http:";
       const probe = await followRedirects(httpUrl.toString(), {
         method: "GET",
-        headers: { "user-agent": "SentraX-Scanner/2.0" },
+        headers: { "user-agent": "ShahinSecurity-Scanner/2.0" },
         signal: AbortSignal.timeout(8000),
       });
       httpToHttpsChain = probe.chain;
@@ -1038,7 +1040,7 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
   try {
     const { chain, final } = await followRedirects(rawUrl, {
       method: "GET",
-      headers: { "user-agent": "SentraX-Scanner/2.0 (+https://sentrax.app)" },
+      headers: { "user-agent": "ShahinSecurity-Scanner/2.0 (+https://sentrax.lovable.app)" },
       signal: AbortSignal.timeout(15000),
     });
     mainChain = chain;
@@ -1149,14 +1151,15 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
   findings.push(...analyzeLibraries(html));
   findings.push(...analyzeFormsAndPrivacy(html, url));
   try {
-    const [owasp, dnsFindings, deepDns, deep] = await Promise.all([
+    const [owasp, dnsFindings, deepDns, deep, vulns] = await Promise.all([
       checkOwaspProbes(rawUrl, url, html),
       checkDnsAndEmail(url.hostname),
       checkDnsDeep(url.hostname),
       checkDeepSurface(url, html, tech),
+      checkActualVulnerabilities(url, html, h),
     ]);
-    findings.push(...owasp.findings, ...dnsFindings, ...deepDns, ...deep.findings);
-    probes = [...owasp.probes, ...deep.probes];
+    findings.push(...owasp.findings, ...dnsFindings, ...deepDns, ...deep.findings, ...vulns.findings);
+    probes = [...owasp.probes, ...deep.probes, ...vulns.probes];
   } catch { /* best-effort */ }
 
   const penalty = findings.reduce((a, f) => a + SEVERITY_WEIGHT[f.severity], 0);
@@ -1178,4 +1181,17 @@ async function runRealScan(rawUrl: string): Promise<ScanResult> {
 export const runScan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ website: z.string().url() }).parse(data))
-  .handler(async ({ data }): Promise<ScanResult> => runRealScan(data.website));
+  .handler(async ({ data, context }): Promise<ScanResult> => {
+    const { supabase, userId } = context;
+    const { data: profile } = await supabase.from("profiles").select("plan").eq("id", userId).maybeSingle();
+    const plan = ((profile?.plan as Plan) ?? "free") as Plan;
+    const limit = PLAN_LIMITS[plan];
+    if (limit !== Infinity) {
+      let q = supabase.from("assessments").select("id", { count: "exact", head: true }).eq("user_id", userId);
+      const since = usagePeriodStart(plan);
+      if (since) q = q.gte("created_at", since);
+      const { count } = await q;
+      if ((count ?? 0) >= limit) throw new Error("Scan limit reached for your plan. Please upgrade to continue.");
+    }
+    return runRealScan(data.website);
+  });

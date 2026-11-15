@@ -18,8 +18,8 @@ export const Route = createFileRoute("/auth")({
   validateSearch: (s) => searchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "Sign in — SentraX" },
-      { name: "description", content: "Sign in or create your SentraX account." },
+      { title: "Sign in — Shahin Security" },
+      { name: "description", content: "Sign in or create your Shahin Security account." },
     ],
   }),
   component: AuthPage,
@@ -53,7 +53,7 @@ function AuthPage() {
           </Tabs>
         </Card>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          Protected by SentraX. By continuing you agree to our Terms & Privacy.
+          Protected by Shahin Security. By continuing you agree to our Terms & Privacy.
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-// Shared client-safe types + UI step metadata for the SentraX scanner.
+// Shared client-safe types + UI step metadata for the Shahin Security scanner.
 // Actual scanning runs server-side in `scan.functions.ts`.
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";

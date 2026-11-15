@@ -11,7 +11,7 @@ import { Logo } from "@/components/logo";
 import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({ meta: [{ title: "Reset password — SentraX" }] }),
+  head: () => ({ meta: [{ title: "Reset password — Shahin Security" }] }),
   component: ResetPassword,
 });
 

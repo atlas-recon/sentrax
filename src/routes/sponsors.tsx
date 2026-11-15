@@ -8,10 +8,10 @@ import { ArrowRight, ShieldCheck, Cpu, Cloud, Code2, Instagram, Handshake, Gradu
 export const Route = createFileRoute("/sponsors")({
   head: () => ({
     meta: [
-      { title: "Partners — SentraX" },
-      { name: "description", content: "SentraX partners with CoreSec, a cybersecurity engineering studio delivering secure development, AI defence and cloud protection." },
-      { property: "og:title", content: "Partners — SentraX" },
-      { property: "og:description", content: "Meet CoreSec, the cybersecurity engineering studio behind the SentraX assessment engine." },
+      { title: "Partners — Shahin Security" },
+      { name: "description", content: "Shahin Security partners with CoreSec, a cybersecurity engineering studio delivering secure development, AI defence and cloud protection." },
+      { property: "og:title", content: "Partners — Shahin Security" },
+      { property: "og:description", content: "Meet CoreSec, the cybersecurity engineering studio behind the Shahin Security assessment engine." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -34,7 +34,7 @@ function SponsorsPage() {
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
             CoreSec is a cybersecurity engineering studio. Their research team builds and maintains the
-            detection logic behind the SentraX assessment engine, and their consultants support our
+            detection logic behind the Shahin Security assessment engine, and their consultants support our
             clients on complex remediation work.
           </p>
         </div>
@@ -56,7 +56,7 @@ function SponsorsPage() {
               <p className="mt-4 text-muted-foreground">
                 Founded by offensive-security practitioners, CoreSec works with businesses across East
                 Africa on penetration testing, secure software delivery, cloud hardening and AI-driven
-                defence. The partnership gives SentraX clients direct access to that expertise whenever a
+                defence. The partnership gives Shahin Security clients direct access to that expertise whenever a
                 finding needs deeper investigation.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -66,7 +66,7 @@ function SponsorsPage() {
                   </a>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/">Back to SentraX <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  <Link to="/">Back to Shahin Security <ArrowRight className="ml-2 h-4 w-4" /></Link>
                 </Button>
               </div>
             </div>
@@ -74,12 +74,12 @@ function SponsorsPage() {
         </Card>
 
         <div className="mt-12">
-          <h3 className="text-center text-2xl font-semibold">What CoreSec brings to SentraX</h3>
+          <h3 className="text-center text-2xl font-semibold">What CoreSec brings to Shahin Security</h3>
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { icon: Search, t: "Penetration testing", d: "Manual exploitation and validation of high-risk findings raised by the platform." },
               { icon: Code2, t: "Secure development", d: "Code review and secure engineering support for client development teams." },
-              { icon: Cpu, t: "AI defence research", d: "Detection models and threat intelligence feeding the SentraX scoring engine." },
+              { icon: Cpu, t: "AI defence research", d: "Detection models and threat intelligence feeding the Shahin Security scoring engine." },
               { icon: Cloud, t: "Cloud protection", d: "Hardening of cloud infrastructure, identity and deployment pipelines." },
             ].map((c) => (
               <Card key={c.t} className="border-border bg-card p-5">
@@ -96,9 +96,9 @@ function SponsorsPage() {
             <ShieldCheck className="h-5 w-5 text-primary" />
             <h4 className="mt-3 font-semibold">How the partnership works</h4>
             <p className="mt-2 text-sm text-muted-foreground">
-              SentraX runs the continuous assessment and reporting layer. When a client needs hands-on
+              Shahin Security runs the continuous assessment and reporting layer. When a client needs hands-on
               work — a full penetration test, incident support or an architecture review — CoreSec's
-              consultants take it on, using the SentraX report as the starting point.
+              consultants take it on, using the Shahin Security report as the starting point.
             </p>
           </Card>
           <Card className="border-border bg-card p-6">
@@ -113,7 +113,7 @@ function SponsorsPage() {
         </div>
 
         <Card className="mt-12 border-border bg-secondary/50 p-8 text-center">
-          <h3 className="text-xl font-semibold">Interested in partnering with SentraX?</h3>
+          <h3 className="text-xl font-semibold">Interested in partnering with Shahin Security?</h3>
           <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
             We work with agencies, hosting providers and consultancies who want to offer security
             assessments to their own clients.

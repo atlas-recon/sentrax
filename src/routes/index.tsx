@@ -13,9 +13,9 @@ import securityImage from "@/assets/section-security.jpg";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "SentraX — Cybersecurity Risk Assessment for Business" },
-      { name: "description", content: "SentraX is a business cybersecurity company. We assess your website security, report the risks in plain language, and help you fix them fast." },
-      { property: "og:title", content: "SentraX — Cybersecurity Risk Assessment for Business" },
+      { title: "Shahin Security — Cybersecurity Risk Assessment for Business" },
+      { name: "description", content: "Shahin Security is a business cybersecurity company. We assess your website security, report the risks in plain language, and help you fix them fast." },
+      { property: "og:title", content: "Shahin Security — Cybersecurity Risk Assessment for Business" },
       { property: "og:description", content: "Website security assessments, executive reports and remediation guidance for growing companies." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -40,7 +40,7 @@ function Landing() {
               Know your cyber risk. <span className="text-primary">Fix it with confidence.</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-              SentraX assesses your website and online systems, explains every weakness in plain business
+              Shahin Security assesses your website and online systems, explains every weakness in plain business
               language, and gives your team a clear plan to close the gaps.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -134,7 +134,7 @@ function Landing() {
             className="w-full rounded-xl border border-border object-cover shadow-elegant"
           />
           <div>
-            <SectionHeader align="left" eyebrow="Why SentraX" title="Security that speaks business" subtitle="Most attacks succeed through weaknesses that are already known and fixable — if someone is looking." />
+            <SectionHeader align="left" eyebrow="Why Shahin Security" title="Security that speaks business" subtitle="Most attacks succeed through weaknesses that are already known and fixable — if someone is looking." />
             <ul className="mt-8 space-y-3 text-sm">
               {[
                 "43% of cyber attacks target small and mid-sized companies.",
@@ -210,7 +210,7 @@ function Landing() {
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
           <div className="grid gap-12 lg:grid-cols-2">
             <div>
-              <SectionHeader align="left" eyebrow="About us" title="A security company built for lean teams" subtitle="SentraX combines automated assessment technology with hands-on security expertise." />
+              <SectionHeader align="left" eyebrow="About us" title="A security company built for lean teams" subtitle="Shahin Security combines automated assessment technology with hands-on security expertise." />
               <p className="mt-6 text-muted-foreground">
                 We work with small and mid-sized companies that depend on their website and online
                 systems but do not have a full security department. Our platform runs the technical
@@ -276,7 +276,7 @@ function Landing() {
             <Link to="/sponsors" className="hover:text-primary">Partners</Link>
             <a href="#contact" className="hover:text-primary">Contact</a>
           </nav>
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} SentraX. All rights reserved.</p>
+          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Shahin Security. All rights reserved.</p>
         </div>
       </footer>
     </div>

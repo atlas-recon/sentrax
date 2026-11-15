@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/profile")({
-  head: () => ({ meta: [{ title: "Profile — SentraX" }] }),
+  head: () => ({ meta: [{ title: "Profile — Shahin Security" }] }),
   component: Profile,
 });
 
@@ -68,7 +68,7 @@ function Profile() {
 
         <Card className="border-border/60 bg-gradient-card p-6 lg:col-span-2">
           <h2 className="font-semibold">Companies</h2>
-          <p className="text-sm text-muted-foreground">Companies you've assessed with SentraX.</p>
+          <p className="text-sm text-muted-foreground">Companies you've assessed with Shahin Security.</p>
           <div className="mt-4 divide-y divide-border/60 rounded-md border border-border/60">
             {(q.data?.companies ?? []).map((c) => (
               <div key={c.id} className="flex items-center justify-between p-4">
