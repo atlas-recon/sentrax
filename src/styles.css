@@ -32,6 +32,9 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-info: var(--info);
+  --color-navy: var(--navy);
+  --color-midnight: var(--midnight);
+  --color-cyan: var(--cyan);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -40,7 +43,7 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
@@ -48,19 +51,19 @@
   --radius: 0.5rem;
 
   /* Light corporate palette — navy, slate, white */
-  --background: oklch(0.99 0.003 250);
-  --foreground: oklch(0.24 0.03 258);
+  --background: #F4F7FB;
+  --foreground: #0B1D33;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.24 0.03 258);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.24 0.03 258);
 
-  --primary: oklch(0.42 0.13 258);           /* corporate navy blue */
+  --primary: #1769D2;
   --primary-foreground: oklch(0.99 0.005 250);
   --secondary: oklch(0.96 0.008 250);
   --secondary-foreground: oklch(0.30 0.03 258);
   --muted: oklch(0.96 0.008 250);
-  --muted-foreground: oklch(0.52 0.02 256);
+  --muted-foreground: #64748B;
   --accent: oklch(0.94 0.02 250);
   --accent-foreground: oklch(0.30 0.04 258);
   --destructive: oklch(0.55 0.20 25);
@@ -68,27 +71,30 @@
 
   --border: oklch(0.90 0.01 252);
   --input: oklch(0.92 0.01 252);
-  --ring: oklch(0.42 0.13 258);
+  --ring: #1769D2;
 
   --success: oklch(0.55 0.14 155);
   --warning: oklch(0.68 0.14 75);
   --danger: oklch(0.55 0.20 25);
   --info: oklch(0.52 0.14 245);
 
-  --gradient-hero: linear-gradient(180deg, oklch(0.97 0.015 250), oklch(1 0 0));
-  --gradient-primary: linear-gradient(135deg, oklch(0.42 0.13 258), oklch(0.50 0.13 240));
+  --gradient-hero: radial-gradient(ellipse at 70% 30%, #0B1D33, #071426 70%);
+  --gradient-primary: linear-gradient(135deg, #1769D2, #38BDF8);
   --gradient-card: linear-gradient(170deg, oklch(1 0 0), oklch(0.985 0.006 250));
 
   --shadow-glow: 0 8px 24px -12px oklch(0.42 0.13 258 / 0.45);
   --shadow-elegant: 0 24px 60px -30px oklch(0.30 0.06 258 / 0.35);
 
-  --sidebar: oklch(0.98 0.005 250);
-  --sidebar-foreground: oklch(0.28 0.03 258);
-  --sidebar-primary: oklch(0.42 0.13 258);
+  --sidebar: #071426;
+  --navy: #071426;
+  --midnight: #0B1D33;
+  --cyan: #38BDF8;
+  --sidebar-foreground: #CBD5E1;
+  --sidebar-primary: #1769D2;
   --sidebar-primary-foreground: oklch(0.99 0.005 250);
-  --sidebar-accent: oklch(0.94 0.02 250);
-  --sidebar-accent-foreground: oklch(0.28 0.04 258);
-  --sidebar-border: oklch(0.91 0.01 252);
+  --sidebar-accent: #0B1D33;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #13294A;
   --sidebar-ring: oklch(0.42 0.13 258);
 }
 
@@ -96,6 +102,8 @@
   * {
     border-color: var(--color-border);
   }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   html, body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -147,3 +155,24 @@
 @utility animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Dark cinematic scope used over the 3D homepage scene */
+.scene {
+  --background: #071426;
+  --foreground: #FFFFFF;
+  --card: color-mix(in oklab, #0B1D33 72%, transparent);
+  --card-foreground: #FFFFFF;
+  --secondary: color-mix(in oklab, #071426 55%, transparent);
+  --secondary-foreground: #E2E8F0;
+  --muted: #13294A;
+  --muted-foreground: #9FB2CC;
+  --accent: #13294A;
+  --accent-foreground: #FFFFFF;
+  --border: color-mix(in oklab, #38BDF8 18%, transparent);
+  --primary: #38BDF8;
+  --primary-foreground: #071426;
+  --popover: #0B1D33;
+  --popover-foreground: #FFFFFF;
+  background: transparent;
+}
+.scene [data-slot="card"], .scene .backdrop-glass { backdrop-filter: blur(10px); }

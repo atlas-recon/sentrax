@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Logo } from "@/components/logo";
-import heroImage from "@/assets/hero-business.jpg";
+import { SceneBackdrop } from "@/components/scene-backdrop";
 import securityImage from "@/assets/section-security.jpg";
 
 export const Route = createFileRoute("/")({
@@ -26,18 +26,19 @@ export const Route = createFileRoute("/")({
 
 function Landing() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="scene relative isolate min-h-screen text-foreground">
+      <SceneBackdrop />
       <SiteHeader />
 
       {/* Hero */}
-      <section className="border-b border-border bg-hero">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-28">
+      <section className="border-b border-border">
+        <div className="mx-auto grid min-h-[88vh] max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-28">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-primary">
               <ShieldCheck className="h-3.5 w-3.5" /> Cybersecurity for growing businesses
             </span>
-            <h1 className="mt-5 text-balance text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-              Know your cyber risk. <span className="text-primary">Fix it with confidence.</span>
+            <h1 className="mt-5 text-balance text-4xl font-bold leading-[1.05] tracking-tight sm:text-6xl">
+              Know your cyber risk. <span className="text-gradient">Fix it with confidence.</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted-foreground">
               Shahin Security assesses your website and online systems, explains every weakness in plain business
@@ -62,15 +63,7 @@ function Landing() {
               ))}
             </dl>
           </div>
-          <div className="relative">
-            <img
-              src={heroImage}
-              alt="Security consultants reviewing a company risk dashboard"
-              width={1600}
-              height={1104}
-              className="w-full rounded-xl border border-border object-cover shadow-elegant"
-            />
-          </div>
+          <div className="hidden lg:block" />
         </div>
       </section>
 
@@ -267,7 +260,7 @@ function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-border bg-secondary/40 py-10">
+      <footer className="border-t border-border bg-navy/80 py-10 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
           <Logo />
           <nav className="flex gap-6 text-sm text-muted-foreground">

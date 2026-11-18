@@ -33,7 +33,7 @@ export function AppShell({ children, title, actions }: { children: ReactNode; ti
 
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex text-sidebar-foreground">
         <div className="flex h-16 items-center border-b border-sidebar-border px-5">
           <Link to="/"><Logo /></Link>
         </div>
@@ -49,7 +49,7 @@ export function AppShell({ children, title, actions }: { children: ReactNode; ti
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                   active
                     ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-glow"
-                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
                 )}
               >
                 <Icon className="h-4 w-4" />
